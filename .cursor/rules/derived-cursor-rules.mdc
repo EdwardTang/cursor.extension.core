@@ -1,0 +1,57 @@
+---
+description: Cursor rules derived by SpecStory from the project AI interaction history
+globs: *
+alwaysApply: false
+---
+
+## PROJECT OVERVIEW
+This project aims to build a real-time system for fulfilling food orders in a delivery-only kitchen. The system should handle order receiving, storage, and pickup concurrently.  The system must process orders according to the logic detailed in the `Challenge.md` (located in the `documentation` folder). Project implementation will follow the steps outlined in `implementation_plan.md` (located in the `documentation` folder).
+
+## CODE STYLE
+Maintain consistent formatting. Use clear and concise variable names. Avoid unnecessary special characters. Properly format headers, lists, and tables. Ensure correct line breaks and spacing.
+
+## FOLDER ORGANIZATION
+- `.cursor/rules/`: Contains project rules (including .mdc files).
+- `documentation/`: Contains downloaded project documentation.
+
+## TECH STACK
+(To be defined based on project needs. The provided example uses Java, Kotlin, Go, C++, and C# scaffolding.)  The system must use a language that truly supports concurrency (e.g., avoid NodeJS with some Python runtimes).  Additional tech stack details may be found in `documentation/tech_stack_document.md`.
+
+## PROJECT-SPECIFIC STANDARDS
+- All orders must be processed according to the logic described in the  `Challenge.md`
+- The system must capture all actions (place, move, pickup, discard) with timestamps and order IDs.  The activity log should clearly track the complete order processing, starting with 'place' and ending with 'pickup' or 'discard'.
+- The order discard selection criteria must be documented in the README.
+- The system should strive to store orders at their ideal temperature.  Orders have an ID, name, ideal temperature (hot, cold, or room temperature), and shelf life; shelf life is halved if not stored at the ideal temperature.
+- When the ideal storage is full, orders must be placed on the shelf.
+- If the shelf is full, a cold or hot order on the shelf must be moved to the cooler or heater (if space is available) before discarding an order.
+- Orders must be removed quickly for pickup without moving other orders.
+- No action is taken if an order is not present during pickup.
+- A command-line executable must simulate system behavior, fetching orders from the challenge server, placing orders based on configurable parameters (order rate and pickup time intervals), and submitting actions to the server for verification.  The submission must include an `x-test-id` header for identification and a JSON request body containing execution options and actions.
+
+
+## WORKFLOW & RELEASE RULES
+(To be defined based on project needs)  The system must be able to handle high concurrency. Download and process documentation as per steps outlined in `documentation/2025-04-15_10-42-url-content-check-and-project-implementation-steps.md`.  The URL previously referenced is now accessible and the documentation has been downloaded.  Files ending in ".mdc" should be moved to the `.cursor/rules/` directory.
+
+## REFERENCE EXAMPLES
+The  `Challenge.md`  serves as a reference for project requirements and API specifications. The `scaffold.zip` file provides scaffolding code in several languages. The `Challenge` server API (detailed in `Challenge.md`) is used for testing. `Initial_design_o1pro.md`, `Questionaire_CodeGuide.md`, and documentation downloaded from the URL specified in WORKFLOW & RELEASE RULES (now located in the `documentation` folder) are also relevant reference documents.  Additional documentation can be found in the `documentation` folder, including `implementation_plan.md`, `security_guideline_document.md`, `cursor_project_rules.md`, `backend_structure_document.md`, `app_flowchart.md`, `tech_stack_document.md`, `app_flow_document.md`, and `project_requirements_document.md`.
+
+## PROJECT DOCUMENTATION & CONTEXT SYSTEM
+The primary documentation is the `Challenge.md` file , which details the project requirements and API specifications. `Initial_design_o1pro.md`, `Questionaire_CodeGuide.md`, and the contents of the `documentation` folder should be consulted for additional information.  The README must include build and run instructions, and the order discard strategy and rationale.  At least one meaningful test case demonstrating concurrent logic or the order discard strategy must be included.
+
+## DEBUGGING
+(To be defined based on project needs)
+
+## FINAL DOs AND DON'Ts
+- **DO** follow the order placement and pickup logic precisely as described in the  `Challenge.md` .
+- **DO** ensure concurrency is handled correctly.
+- **DO** include comprehensive comments in your code.
+- **DO** thoroughly test your solution.
+- **DO** follow the implementation plan in `documentation/implementation_plan.md` if available.
+- **DON'T** use languages that don't support true concurrency (e.g., NodeJS with some Python runtimes).
+- **DON'T** move orders unnecessarily during pickup.
+- **DON'T** neglect error handling.
+
+
+** Challenge.md Summary:**
+
+This challenge requires building a real-time system for handling order receiving, storage, and pickup in a delivery-only kitchen. Orders have IDs, names, ideal temperatures (hot, cold, or room temperature), and shelf life; shelf life is halved if not stored at the ideal temperature. The system must support concurrent operations and follow this logic: Upon receiving a new order, the system attempts to place it in its ideal storage: refrigerator (6 cold orders max), heater (6 hot orders max), or room-temperature shelf (12 orders max). If the ideal storage is full, it goes to the shelf; if the shelf is full, it tries moving a cold/hot order from the shelf to the refrigerator/heater (if space is available). If no space is available, an order on the shelf must be discarded. Pickup requires quickly locating and removing the order without moving others. If the order is absent, no action is taken. The system must log all actions (place, move, pickup, discard) with timestamps and order IDs.  A command-line executable is required to simulate system behavior, fetching orders from the challenge server based on configurable parameters (order rate and pickup time intervals) and submitting actions for verification.  The submission must include an `x-test-id` header and a JSON request body.  The system must handle high concurrency.

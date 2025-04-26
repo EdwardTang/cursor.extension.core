@@ -1,0 +1,1333 @@
+---
+layout: default
+title: "Agentic Coding"
+---
+
+# Agentic Coding: Humans Supervise, Agents Design, Agents code!
+
+As you are an helpful coding assistant involved in building large scale distributed systems, read this guide **VERY, VERY** carefully! This is the most important chapter in the entire document. Throughout development, you should always:
+(1) Act as a multi-agent system coordinator, playing two roles in this environment: Planner and Executor. 
+(2) Decide the next steps based on the current state of `Multi-Agent Scratchpad` section in `scratchpad.md`, aiming to complete the human's (or business's) final requirements. 
+(3) Start with a small and simple solution, 
+(4) Design at a high level (`docs/design.md`, if the file already exists, then review the design to see if you also buy-in the design. If you are not fully buy-in, proposed improvements to human) before implementation, and 
+(5) Ask humans for feedback and clarification frequently.
+(6) Seek the human for help when you are blocked.
+(7) Check If `docs/design.md` is newly modified/created, update the relevant sections in `scratchpad.md`, 'Agentic Coding Steps' section of '.cursorrules', the `codex.md`, all the related .md docs in folder `docs/`,  to reflect the changes.
+(8) Check If the latest `scratchpad.md` changes are 6+ hours old, use mcp server tool Pieces to recall where the work is left off.
+{: .warning }
+
+## Agentic Coding Steps
+
+Agentic Coding should be a collaboration between Human Supervisor and Agent's  Design & Implementation:
+
+| Steps                  | Human      | AI        | Comment                                                                 |
+|:-----------------------|:----------:|:---------:|:------------------------------------------------------------------------|
+| 1. Requirements | ★★★ High  | ★☆☆ Low   | Humans understand the requirements and context.                    |
+| 2. System Design          | ★★☆ Medium | ★★☆ Medium |  Humans specify the high-level design, and the AI fills in the details. |
+| 3. API Design          | ★☆☆ Low   | ★★★ High  | Based on system design, define core API endpoints.                     |
+| 4. Data Models         | ★☆☆ Low   | ★★★ High  | Based on API design, define core data structures.                   |
+| 5. Tech Stack          | ★★☆ Medium | ★★☆ Medium | Select appropriate technologies and address concurrency.             |
+| 6. Utilities           | ★★☆ Medium | ★★☆ Medium | Identify and implement necessary supporting functions.                 |
+| 7. Implementation      | ★☆☆ Low   | ★★★ High  |  The AI implements the flow based on the design.                    |
+| 8. Optimization        | ★★☆ Medium | ★★☆ Medium | Humans evaluate the results, and the AI helps optimize.              |
+| 9. Reliability         | ★☆☆ Low   | ★★★ High  |  The AI writes test cases and addresses corner cases.               |
+
+1. **Requirements**: Understand the CloudKitchen order fulfillment system requirements and constraints.
+   - **Real-time processing needs**: Orders arrive at configurable rate (e.g., 2/sec), couriers arrive after random delay (e.g., 2-6 seconds)
+   - **Storage constraints**: Three storage options per `docs/Challenge.md` –  
+     *Cooler* (6 cold), *Heater* (6 hot) and the room‑temperature *Shelf* (12).  
+     When the ideal Cooler/Heater is full, the order goes to the Shelf; no separate
+     “Overflow” shelf exists in the spec.
+   - **Order lifecycle**: Each order must be placed on appropriate shelf, possibly moved, and ultimately picked up or discarded
+   - **Freshness tracking**: Each order starts with `shelfLife` seconds of freshness.  
+     • While on its **ideal** Cooler/Heater, freshness counts down at normal speed.  
+     • While on the room‑temperature Shelf (i.e. not at its ideal temp), it decays
+       **twice as fast** (half‑life rule from the spec).  
+     There is no additional decay tier for a non‑existent “overflow” shelf.
+   - **Discard logic**  
+   1. **Expiry** – Remove (discard) any order whose freshness value is ≤ 0.  
+   2. **Shelf‑full case** – When placing a new order and the Shelf is full:  
+      a. Try moving an existing **cold** or **hot** order on the Shelf to its
+         Cooler / Heater if space exists.  
+      b. If no move is possible, discard the Shelf order that currently has the
+         **lowest freshness value** (ties → oldest `placedTime`).  
+     This minimises waste by sacrificing the item least likely to be delivered
+     successfully.
+
+2. **System Design**: Outline the high-level event-driven architecture for the order fulfillment system.
+   - **Event-Driven Architecture**: The core pattern matches CloudKitchens' real systems where order events flow independently
+   - Outline the high-level architecture and core use case's data flow diagrams in `docs/design.md` using mermaid syntax. for example:
+     - Architecture diagram:
+      ```mermaid
+   graph TD
+      subgraph Simulation Harness (Single Process)
+        OrderProducer[Order Producer Thread/Task]
+        CourierScheduler[Courier Scheduler Thread/Task]
+        Kitchen[Kitchen State Manager]
+        ExpirationMonitor[Expiration Monitor Thread/Task]
+        ChallengeClient[Challenge Server Client]
+
+        subgraph Shelves (In-Memory)
+            HotShelf[(Hot Shelf Cap: 6)]
+            ColdShelf[(Cold Shelf Cap: 6)]
+            Shelf[(Room‑Temp Shelf Cap: 12)]
+        end
+
+        subgraph Logging
+          ActionLedger[Action Ledger (stdout)]
+        end
+      end
+
+      OrderProducer -->|Fetch Orders| ChallengeClient
+      OrderProducer -->|Place Order Event| Kitchen
+      Kitchen -->|Store/Retrieve| HotShelf
+      Kitchen -->|Store/Retrieve| ColdShelf
+      Kitchen -->|Store/Retrieve| Shelf
+
+      Kitchen -->|Schedule Pickup| CourierScheduler
+      CourierScheduler -->|Pickup Event| Kitchen
+
+      ExpirationMonitor -->|Scan for Expired| Kitchen
+
+      Kitchen -->|Log Action| ActionLedger
+      Kitchen -->|Submit Actions| ChallengeClient
+   ```
+     
+     - Core Use Case Data flow diagrams:
+     
+     1. Order Placement Flow:
+     ```mermaid
+     graph TD
+        A[Client] -->|Submit Order| B[Load Balancer]
+        B --> C[Web Servers]
+        C --> D[Order Service]
+        
+        D -->|1. Check shelf capacity| E[KitchenService]
+        E -->|2. Place on primary shelf| F[Temperature-specific Shelf (Hot/Cold)]
+        E -->|2a. If primary full| G[Room Temp Shelf]
+        
+        G -->|3. If room temp shelf full| H{Move possible from Room Temp Shelf to Primary?}
+        H -->|Yes| I[Move order from Room Temp Shelf to primary]
+        H -->|No| J[Discard order from Room Temp Shelf]
+        
+        E --> K[Order Cache]
+        K --> L[(Order DB)]
+        
+        D -->|4. Dispatch courier| M[Courier Service]
+        M -->|5. Schedule pickup| N[Pickup Queue]
+     ```
+     
+     2. Order Pickup Flow:
+     ```mermaid
+     graph TD
+        A[Courier Scheduler] -->|1. Trigger Pickup Event| B[Kitchen State Manager]
+        B -->|2. Find Order by ID| C{Order Found?}
+        
+        C -->|Yes| D[Get Current Shelf]
+        D --> E{Remove from Shelf}
+        E -- Success --> F1[Log Pickup Action]
+        E -- Failed (Race?) --> G1[Log Pickup Miss]
+        
+        C -->|No (Discarded?)| H1[Log Pickup Miss]
+     ```
+     
+     3. Order Expiration Flow:
+     ```mermaid
+     graph TD
+        A[Expiration Monitor Task] -->|1. Check All Shelves| B[Kitchen State Manager]
+        
+        B -->|2a. Scan| C[Hot Shelf]
+        B -->|2b. Scan| D[Cold Shelf]
+        B -->|2c. Scan| E[Room Temp Shelf]
+        
+        B -->|3. For each order| G{Value <= 0?}
+        G -->|Yes| H[Discard Order]
+        G -->|No| I[Keep Order]
+        
+        H -->|4. Update metrics| J[Metrics Service]
+        H -->|5. Log discard| K[Logging Service]
+     ```
+   - **Main Components**:
+     - Order Producer: Injects orders at specified rate, triggers "Order Placed" events
+     - Shelves & Kitchen State: In-memory state management with thread-safe operations
+     - Courier Scheduler: Schedules courier "Pickup events" after random delays
+     - Kitchen State Manager: Processes pickup requests, removes orders from shelves
+     - Expiration Monitor: Background process checking for expired orders
+   - **Data Flow**: Orders progress through states (received → placed → possibly moved → picked up or discarded)
+   - **Concurrency Model**: Thread pool (e.g., `ScheduledExecutorService`) with non-blocking design to process orders independently
+   
+3. **API Design**: Based on the system design, define core API endpoints and their relationships. for example:
+   - **Order Placement**:
+     ```bash
+     POST /v1/orders
+     ```
+     - Parameters: Order details (id, name, temp, shelfLife)
+     - Response: Order status with placement information
+     - Used to introduce new orders into the system
+
+   - **Order Pickup**:
+     ```bash
+     POST /v1/orders/{id}/pickup
+     ```
+     - Parameters: Order ID (path parameter)
+     - Response: Pickup confirmation with order details and freshness value
+     - Handles courier pickup operations
+
+   - **Shelf Status**:
+     ```bash
+     GET /v1/shelves
+     ```
+     - Parameters: None
+     - Response: Current status of all shelves with their orders
+     - Provides visibility into kitchen state
+
+   - **Order Status**:
+     ```bash
+     GET /v1/orders/{id}
+     ```
+     - Parameters: Order ID (path parameter)
+     - Response: Detailed order information including current status and history
+     - For tracking individual orders
+
+   - **Kitchen Action Ledger**:
+     ```bash
+     GET /v1/actions
+     ```
+     - Parameters: Optional filters (orderId, action type, time range)
+     - Response: Chronological list of kitchen actions (place, move, pickup, discard)
+     - Captures the complete history of order management
+
+   - **Challenge Server Interaction**: Based on the system design, define interaction points with the external Challenge Server.
+     - **Fetch Orders**: `GET https://api.cloudkitchens.com/interview/challenge/new` (Handled by harness/client)
+       - Uses `auth` token, receives `x-test-id` and order list JSON.
+     - **Submit Actions**: `POST https://api.cloudkitchens.com/interview/challenge/solve` (Handled by harness/client)
+       - Uses `auth` token and `x-test-id` header.
+       - Sends JSON body containing simulation options (rate, pickup times) and the list of timestamped actions (place, move, pickup, discard).
+       - Receives pass/fail result string.
+     - **Internal Simulation Logic**: The core system (Kitchen, Shelves, Order) manages the state and generates the action list internally, driven by scheduled events, without exposing its own HTTP API.
+
+4. **Data Models**: Based on the API Design, define core data structures and their relationships. for example:
+   - **Order Class**: Contains order details and methods to track shelf placement and value
+     ```java
+     public class Order {
+         private final String id;
+         private final String name;
+         private final Temperature temp;  // enum for HOT/COLD/ROOM_TEMP
+         private final int shelfLife;     // shelf life in seconds
+         private final double decayRate = 1.0; // decay rate assumed 1.0 if not provided? Challenge.md doesn't specify it.
+         private volatile Shelf currentShelf;
+         private final long createdOrMovedTimeNanos; // Use nanoTime for monotonic time
+
+         // Enum for Temperature and ShelfType should be defined elsewhere
+         // e.g., public enum Temperature { HOT, COLD, ROOM_TEMP }
+         // e.g., public enum ShelfType { HOT, COLD, ROOM_TEMP }
+
+         // Constructor
+         public Order(String id, String name, Temperature temp, int shelfLife) {
+             this.id = id;
+             this.name = name;
+             this.temp = temp;
+             this.shelfLife = shelfLife;
+             // Initialize placement time when actually placed
+             this.createdOrMovedTimeNanos = System.nanoTime();
+         }
+
+         // Calculate current value (freshness) based on time since placement/move
+         public synchronized double getCurrentValue() {
+             // Use nanoTime for monotonic age calculation
+             long ageNanos = System.nanoTime() - createdOrMovedTimeNanos;
+             long ageSeconds = TimeUnit.NANOSECONDS.toSeconds(ageNanos);
+             
+             // Shelf decay modifier based on the spec (double decay if not on ideal temp)
+             Shelf current = this.currentShelf; // Volatile read
+             boolean onIdealShelf = (current != null) && 
+                                  ((temp == Temperature.HOT  && current.getType() == ShelfType.HOT ) ||
+                                   (temp == Temperature.COLD && current.getType() == ShelfType.COLD) ||
+                                   (temp == Temperature.ROOM_TEMP && current.getType() == ShelfType.ROOM_TEMP)); // ROOM_TEMP ideal shelf is ROOM_TEMP
+             double shelfDecayMod = onIdealShelf ? 1.0 : 2.0;  // off-temperature halves freshness time
+
+             double value = (double)(shelfLife - decayRate * ageSeconds * shelfDecayMod) / shelfLife;
+             return Math.max(value, 0.0);
+         }
+
+         // Thread-safe shelf placement method (updates state and timer)
+         public synchronized void placeOnShelf(Shelf shelf) {
+             this.currentShelf = shelf;
+             this.createdOrMovedTimeNanos = System.nanoTime(); // Reset timer on placement/move
+         }
+
+         // Getters
+         public String getId() { return id; }
+         public Temperature getTemp() { return temp; }
+         public Shelf getCurrentShelf() { return currentShelf; }
+         public long getCreatedOrMovedTimeNanos() { return createdOrMovedTimeNanos; }
+     }
+     ```
+   
+   - **Shelf Class**: Represents each shelf type with thread-safe operations
+     ```java
+     public class Shelf {
+         private final ShelfType type;
+         private final int capacity;
+         private final List<Order> orders = new ArrayList<>();
+         
+         public Shelf(ShelfType type, int capacity) {
+             this.type = type;
+             this.capacity = capacity;
+         }
+         
+         public ShelfType getType() { return type; }
+         
+         // Thread-safe shelf operations
+         public synchronized boolean isFull() {
+             return orders.size() >= capacity;
+         }
+         
+         public synchronized boolean isEmpty() {
+             return orders.isEmpty();
+         }
+         
+         public synchronized void addOrder(Order order) {
+             if (orders.size() >= capacity) throw new IllegalStateException("Shelf full");
+             orders.add(order);
+             order.placeOnShelf(this); // Use dedicated method to set shelf and time
+         }
+         
+         public synchronized Order removeOrder(Order order) {
+             if (orders.remove(order)) {
+                 return order;
+             }
+             return null;
+         }
+         
+         public synchronized Order removeAny() {
+             // Changed from random to lowest value discard strategy
+             return removeLowestValueOrder();
+         }
+         
+         // Added method for explicit lowest value removal
+         private synchronized Order removeLowestValueOrder() {
+             if (orders.isEmpty()) return null;
+             
+             Order lowestValueOrder = null;
+             double lowestValue = Double.MAX_VALUE;
+             
+             for (Order order : orders) {
+                 double value = order.getCurrentValue();
+                 if (value < lowestValue) {
+                     lowestValue = value;
+                     lowestValueOrder = order;
+                 }
+             }
+             
+             if (lowestValueOrder != null) {
+                 orders.remove(lowestValueOrder);
+             }
+             return lowestValueOrder;
+         }
+         
+         public synchronized List<Order> getOrdersSnapshot() {
+             return new ArrayList<>(orders);  // copy for safe iteration
+         }
+     }
+     ```
+   
+   - **Kitchen Coordinator**: Central component managing all shelves and order placement logic
+     ```java
+     public class Kitchen {
+         private final Shelf hotShelf;
+         private final Shelf coldShelf;
+         private final Shelf roomTempShelf; 
+         private final ConcurrentHashMap<String, Order> ordersById = new ConcurrentHashMap<>();
+
+         // Capacities defined by Challenge.md
+         public Kitchen() {
+             this.hotShelf = new Shelf(ShelfType.HOT, 6);
+             this.coldShelf = new Shelf(ShelfType.COLD, 6);
+             this.roomTempShelf = new Shelf(ShelfType.ROOM_TEMP, 12);
+         }
+         
+         // Helper to get the primary shelf based on temperature
+         private Shelf getPrimaryShelfForTemp(Temperature temp) {
+             switch (temp) {
+                 case HOT: return hotShelf;
+                 case COLD: return coldShelf;
+                 case ROOM_TEMP: return roomTempShelf; 
+                 default: throw new IllegalArgumentException("Unsupported temperature: " + temp);
+             }
+         }
+
+         // Helper to get the shelf object from its type
+         private Shelf getShelfByType(ShelfType type) {
+             switch (type) {
+                 case HOT: return hotShelf;
+                 case COLD: return coldShelf;
+                 case ROOM_TEMP: return roomTempShelf;
+                 default: return null; // Should not happen
+             }
+         }
+         
+         // Core methods: place orders, pickup orders, and remove expired orders
+         public void placeOrder(Order order) {
+             ordersById.put(order.getId(), order);
+             
+             Shelf primaryShelf = getPrimaryShelfForTemp(order.getTemp());
+             
+             // Lock primary shelf first
+             synchronized (primaryShelf) {
+                 if (!primaryShelf.isFull()) {
+                     primaryShelf.addOrder(order);
+                     logAction("PLACED", order, primaryShelf.getType());
+                     return;
+                 }
+             }
+             
+             // Cooler/Heater full or order is ROOM_TEMP -> place candidate on Shelf (roomTempShelf)
+             // Ensure locking order: RoomTempShelf is likely last in order (e.g., HOT < COLD < ROOM_TEMP)
+             synchronized(roomTempShelf) {
+                 if (!roomTempShelf.isFull()) {
+                     roomTempShelf.addOrder(order);
+                     logAction("PLACED", order, roomTempShelf.getType());
+                     return;
+                 }
+             
+                 // Shelf full – try to move a cold/hot Shelf order back to its Cooler/Heater
+                 // According to the spec, we need to check if we can move *any* eligible order
+                 // from the roomTempShelf to its ideal Cooler/Heater shelf if space exists there.
+                 // This must happen BEFORE discarding from roomTempShelf.
+                 boolean moved = tryMoveShelfOrderToIdeal(); // This helper needs locks
+
+             // If a move occurred, roomTempShelf might have space now. If not, or if still full, discard.
+             if (!roomTempShelf.isFull()) { // Re-check after potential move
+                 roomTempShelf.addOrder(order);
+                 logAction("PLACED", order, ShelfType.ROOM_TEMP);
+                 return;
+             } else {
+                 // If still full (no move possible or still not enough space), discard the lowest value order from roomTempShelf
+                 Order orderToDiscard = roomTempShelf.removeLowestValueOrder(); 
+                 if (orderToDiscard != null) {
+                     ordersById.remove(orderToDiscard.getId());
+                     logAction("DISCARD", orderToDiscard, ShelfType.ROOM_TEMP); // Use DISCARD action name
+                     
+                     // Now place the new order on the roomTempShelf (space was just made)
+                     roomTempShelf.addOrder(order);
+                     logAction("PLACED", order, ShelfType.ROOM_TEMP);
+                 } else {
+                     // Should not happen if shelf was full, but handle defensively
+                     logAction("ERROR", order, ShelfType.ROOM_TEMP); // Log error - couldn't place or discard
+                     System.err.println(formatTimestamp() + " CRITICAL_ERROR: Could not place order " + order.getId() + " on full room temp shelf and could not discard.");
+                     // Potentially remove the order we failed to place?
+                     ordersById.remove(order.getId()); 
+                 }
+             }
+         }
+         
+         // Helper method to try moving ONE order from roomTempShelf to its ideal shelf
+         // Returns true if a move was successful, false otherwise.
+         private boolean tryMoveShelfOrderToIdeal() {
+             // Iterate over a snapshot to avoid ConcurrentModificationException
+             List<Order> roomTempOrders = roomTempShelf.getOrdersSnapshot(); // Get copy for iteration
+
+             for (Order orderToMove : roomTempOrders) {
+                 // Only consider moving HOT or COLD orders off the room temp shelf
+                 if (orderToMove.getTemp() == Temperature.HOT || orderToMove.getTemp() == Temperature.COLD) {
+                     Shelf targetShelf = getPrimaryShelfForTemp(orderToMove.getTemp()); // Hot or Cold shelf
+
+                     // Acquire locks in fixed order (e.g., by ShelfType ordinal) to prevent deadlock
+                     // Assuming order HOT < COLD < ROOM_TEMP
+                     Shelf firstLock = targetShelf.getType().ordinal() < roomTempShelf.getType().ordinal() ? targetShelf : roomTempShelf;
+                     Shelf secondLock = firstLock == targetShelf ? roomTempShelf : targetShelf;
+
+                     synchronized (firstLock) {
+                         synchronized (secondLock) {
+                             // Double-check conditions after acquiring locks
+                             if (!targetShelf.isFull()) {
+                                 // Ensure the order is still on the roomTempShelf (could have been picked up/expired)
+                                 Order currentOrder = ordersById.get(orderToMove.getId()); // Check master map
+                                 if (currentOrder != null && currentOrder.getCurrentShelf() == roomTempShelf) {
+                                     // Perform the move
+                                     if (roomTempShelf.removeOrder(currentOrder) != null) { // Ensure removal success
+                                         targetShelf.addOrder(currentOrder); // Add to target
+                                         logAction("MOVE", currentOrder, targetShelf.getType()); // Use MOVE action name
+                                         return true; // Moved one order, that's enough for now
+                                     } else {
+                                         // Log if removal failed unexpectedly (e.g., race condition)
+                                         System.err.println(formatTimestamp() + " MOVE_ERROR: Failed to remove order " + currentOrder.getId() + " from room temp shelf during move attempt.");
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+             }
+             return false; // No suitable order found or no space on target shelves
+         }
+         
+         public void pickupOrder(String orderId) {
+             Order order = ordersById.get(orderId);
+             if (order == null) {
+                 // Order not found (possibly already discarded)
+                 System.out.println(formatTimestamp() + " COURIER_MISS: Order " + orderId + " not found (possibly already discarded)");
+                 return;
+             }
+             
+             Shelf shelf = order.getCurrentShelf();
+             synchronized(shelf) {
+                 if (shelf.removeOrder(order) != null) {
+                     // Order successfully removed
+                     double value = order.getCurrentValue();
+                     ordersById.remove(orderId);
+                     logAction("PICKED_UP", order, shelf.getType());
+                     
+                     // Track statistics
+                     deliveredCount.incrementAndGet();
+                     
+                     // If value <= 0, order was technically "waste" at pickup time
+                     if (value <= 0) {
+                         System.out.println(formatTimestamp() + " WARNING: Order " + orderId + 
+                                            " was picked up with zero value (expired)");
+                     }
+                 } else {
+                     // Order not found on shelf (race condition, picked up by another thread)
+                     System.out.println(formatTimestamp() + " COURIER_MISS: Order " + orderId + 
+                                        " not found on expected shelf (likely discarded or race condition)");
+                 }
+             }
+         }
+         
+         public void removeExpiredOrders() {
+             // Only need to check Hot, Cold, and Room Temp shelves
+             Shelf[] allShelves = new Shelf[]{hotShelf, coldShelf, roomTempShelf};
+             
+             for (Shelf shelf : allShelves) {
+                 synchronized(shelf) {
+                     List<Order> orders = shelf.getOrdersSnapshot();
+                     for (Order order : orders) {
+                         if (order.getCurrentValue() <= 0) {
+                             // Order has expired, remove it
+                             if (shelf.removeOrder(order) != null) { // Check if remove succeeded (wasn't picked up concurrently)
+                                 ordersById.remove(order.getId());
+                                 logAction("DISCARD", order, shelf.getType()); // Log as DISCARD (reason: expired)
+                                 // Track statistics
+                                 wastedCount.incrementAndGet();
+                             }
+                         }
+                     }
+                 }
+             }
+         }
+         
+         private final AtomicInteger deliveredCount = new AtomicInteger(0);
+         private final AtomicInteger wastedCount = new AtomicInteger(0);
+         private final long startTime = System.currentTimeMillis();
+         
+         private String formatTimestamp() {
+             long elapsed = System.currentTimeMillis() - startTime;
+             return String.format("[+%.3fs]", elapsed / 1000.0);
+         }
+         
+         private void logAction(String action, Order order, ShelfType shelfType) {
+             // Value calculation might need care if called outside locks or if state changes
+             double value = order.getCurrentValue(); 
+             String message = String.format("%s %-9s Order %s (%s, temp=%s) %s %s Shelf (Value: %.2f)",
+                 formatTimestamp(),
+                 action,
+                 order.getId(),
+                 order.getName(), // Assuming Order has getName()
+                 order.getTemp(),
+                 action.equals("PLACED") || action.equals("MOVE") ? "on" : "from",
+                 shelfType,
+                 value
+             );
+             System.out.println(message);
+         }
+         
+         private void printSummary() {
+             int delivered = deliveredCount.get();
+             int wasted = wastedCount.get();
+             // Assuming ordersReceived is tracked elsewhere or calculated
+             int totalAttempted = delivered + wasted + ordersById.size(); // Approximate total if not tracked explicitly
+             double successRate = (totalAttempted > 0) ? (delivered * 100.0) / totalAttempted : 0.0;
+
+             System.out.println("\n=== SIMULATION SUMMARY ===");
+             System.out.println("Total orders processed (attempted/completed): " + totalAttempted);
+             System.out.println("Successfully delivered: " + delivered);
+             System.out.println("Wasted/discarded (including expired): " + wasted);
+             System.out.println("Remaining on shelves: " + ordersById.size());
+             System.out.println("Delivery success rate (delivered / total attempted): " + String.format("%.1f%%", successRate));
+             System.out.println("==========================\n");
+         }
+     }
+     ```
+5. **Tech Stack**: 
+   - **System Architecture (Challenge Implementation)**:
+     - Event-driven Architecture: Optimized for real-time order processing, leveraging a message bus core (e.g., Kafka via `quarkus-smallrye-reactive-messaging-kafka`).
+     - Single-Process Simulation: Command-line harness driving in-memory state changes.
+     - Concurrency Model: Core Java Concurrency (`ExecutorService`, `ScheduledExecutorService`, `synchronized`, `ConcurrentHashMap`) is used for the simulation.
+     - Data Structures: Thread-safe collections (`ConcurrentHashMap`) and careful synchronization (`synchronized` blocks, considering lock ordering like HOT < COLD < ROOM_TEMP) are employed.
+
+   - **Recommended Repository Structure (Hexagonal with Quarkus/Gradle)**:
+     ```
+     cloudkitchen/
+     ├── build.gradle
+     ├── settings.gradle
+     ├── gradle/
+     ├── gradlew, gradlew.bat
+     ├── Dockerfile (provided)
+     ├── docs/
+     ├── scratchpad/
+     └── src/main/java/com/css/challenge/
+         ├── Main.java           # Entry point, CLI parsing
+         ├── Order.java          # Data model
+         ├── Shelf.java          # Shelf logic
+         ├── Kitchen.java        # Core coordinator
+         ├── SimulationService.java # Manages simulation loop, scheduling
+         ├── client/             # Challenge server client code (provided)
+         └── ... (enums, etc.)
+     ```
+     - Focus on clear separation of concerns: data models, core logic, simulation orchestration, client interaction.
+
+   - **Concurrency Optimizations & Reliability**:
+     - Lock Ordering: Essential for preventing deadlocks in multi-shelf operations (e.g., HOT < COLD < ROOM_TEMP).
+     - Thread Pool Management: Ensure proper sizing and shutdown of `ScheduledExecutorService`.
+     - Exception Handling: Robust handling in scheduled tasks.
+     - Logging: Use standard output as required, ensure thread safety if using custom buffers.
+
+6. **Utilities**: Based on System Design and Data Models, identify and implement necessary supporting functions.
+   - **Thread Management (Challenge Implementation)**:
+     - `ExecutorService` / `ScheduledExecutorService` for scheduling tasks (order production, courier pickups, expiration checks). Use Virtual Threads factory if enabled.
+     - Thread-safe collections (`ConcurrentHashMap`) for central order lookup.
+   - **Time Handling**:
+     - Functions to calculate order age and freshness value (consider `System.nanoTime()` for monotonic time).
+     - Use `ScheduledExecutorService` for courier arrival and order expiration checks.
+   - **Logging**:
+     - Action logger for shelf operations (place, move, pickup, discard, expired) - use standard output.
+     - Timestamping functions for event tracking.
+     - Order state tracking (delivered vs. wasted counts) using `AtomicInteger`.
+
+7. **Implementation**: Based on previous designs, Implement core algorithms and concurrent workflows. For examples:
+   - **Shelf Selection Algorithm**: Implement the logic for placing orders on appropriate shelves
+     ```java
+     public void placeOrder(Order order) {
+         ordersById.put(order.getId(), order);
+         
+         Shelf primaryShelf = getPrimaryShelfForTemp(order.getTemp());
+         
+         // Lock primary shelf first
+         synchronized (primaryShelf) {
+             if (!primaryShelf.isFull()) {
+                 primaryShelf.addOrder(order);
+                 logAction("PLACED", order, primaryShelf.getType());
+                 return;
+             }
+         }
+         
+         // Cooler/Heater full or order is ROOM_TEMP -> place candidate on Shelf (roomTempShelf)
+         // Ensure locking order: RoomTempShelf is likely last in order (e.g., HOT < COLD < ROOM_TEMP)
+         if (primaryShelf != roomTempShelf) {
+             synchronized (roomTempShelf) {
+                 if (!roomTempShelf.isFull()) {
+                     roomTempShelf.addOrder(order);
+                     logAction("PLACED", order, ShelfType.ROOM_TEMP);
+                     return;
+                 }
+             
+                 // Shelf full – try to move a cold/hot Shelf order back to its Cooler/Heater
+                 // According to the spec, we need to check if we can move *any* eligible order
+                 // from the roomTempShelf to its ideal Cooler/Heater shelf if space exists there.
+                 // This must happen BEFORE discarding from roomTempShelf.
+                 boolean moved = tryMoveShelfOrderToIdeal(); // This helper needs locks
+
+             // If a move occurred, roomTempShelf might have space now. If not, or if still full, discard.
+             if (!roomTempShelf.isFull()) { // Re-check after potential move
+                 roomTempShelf.addOrder(order);
+                 logAction("PLACED", order, ShelfType.ROOM_TEMP);
+                 return;
+             }
+         
+                 // If still full (no move possible or still not enough space), discard the lowest value order from roomTempShelf
+                 Order orderToDiscard = roomTempShelf.removeLowestValueOrder(); 
+                 if (orderToDiscard != null) {
+                     ordersById.remove(orderToDiscard.getId());
+                     logAction("DISCARD", orderToDiscard, ShelfType.ROOM_TEMP); // Use DISCARD action name
+                     
+                     // Now place the new order on the roomTempShelf (space was just made)
+                     roomTempShelf.addOrder(order);
+                     logAction("PLACED", order, ShelfType.ROOM_TEMP);
+                 } else {
+                     // Should not happen if shelf was full, but handle defensively
+                     logAction("ERROR", order, ShelfType.ROOM_TEMP); // Log error - couldn't place or discard
+                     System.err.println(formatTimestamp() + " CRITICAL_ERROR: Could not place order " + order.getId() + " on full room temp shelf and could not discard.");
+                     // Potentially remove the order we failed to place?
+                     ordersById.remove(order.getId()); 
+                 }
+             }
+         }
+     }
+     
+     // Helper method to try moving ONE order from roomTempShelf to its ideal shelf
+     // Returns true if a move was successful, false otherwise.
+     private boolean tryMoveShelfOrderToIdeal() {
+         // Iterate over a snapshot to avoid ConcurrentModificationException
+         List<Order> roomTempOrders = roomTempShelf.getOrdersSnapshot(); // Get copy for iteration
+
+         for (Order orderToMove : roomTempOrders) {
+             // Only consider moving HOT or COLD orders off the room temp shelf
+             if (orderToMove.getTemp() == Temperature.HOT || orderToMove.getTemp() == Temperature.COLD) {
+                 Shelf targetShelf = getPrimaryShelfForTemp(orderToMove.getTemp()); // Hot or Cold shelf
+
+                 // Acquire locks in fixed order (e.g., by ShelfType ordinal) to prevent deadlock
+                 // Assuming order HOT < COLD < ROOM_TEMP
+                 Shelf firstLock = targetShelf.getType().ordinal() < roomTempShelf.getType().ordinal() ? targetShelf : roomTempShelf;
+                 Shelf secondLock = firstLock == targetShelf ? roomTempShelf : targetShelf;
+
+                 synchronized (firstLock) {
+                     synchronized (secondLock) {
+                         // Double-check conditions after acquiring locks
+                         if (!targetShelf.isFull()) {
+                             // Ensure the order is still on the roomTempShelf (could have been picked up/expired)
+                             Order currentOrder = ordersById.get(orderToMove.getId()); // Check master map
+                             if (currentOrder != null && currentOrder.getCurrentShelf() == roomTempShelf) {
+                                 // Perform the move
+                                 if (roomTempShelf.removeOrder(currentOrder) != null) { // Ensure removal success
+                                     targetShelf.addOrder(currentOrder); // Add to target
+                                     logAction("MOVE", currentOrder, targetShelf.getType()); // Use MOVE action name
+                                     return true; // Moved one order, that's enough for now
+                                 } else {
+                                     // Log if removal failed unexpectedly (e.g., race condition)
+                                     System.err.println(formatTimestamp() + " MOVE_ERROR: Failed to remove order " + currentOrder.getId() + " from room temp shelf during move attempt.");
+                                 }
+                             }
+                         }
+                     }
+                 }
+             }
+         }
+         return false; // No suitable order found or no space on target shelves
+     }
+     
+     // This specific discard selection logic is now primarily handled within Kitchen.placeOrder
+     // when the roomTempShelf is full and no move is possible.
+     // removeLowestValueOrder() in Shelf class provides the mechanism.
+     private Order selectOrderForDiscard() {
+         // This method is likely no longer needed here as the logic is in placeOrder
+         return null;
+     }
+     ```
+   
+   - **Order Pickup Implementation**: Handle courier arrival and order pickup
+     ```java
+     public void pickupOrder(String orderId) {
+         Order order = ordersById.get(orderId);
+         if (order == null) {
+             // Order not found (possibly already discarded)
+             System.out.println(formatTimestamp() + " COURIER_MISS: Order " + orderId + " not found (possibly already discarded)");
+             return;
+         }
+         
+         Shelf shelf = order.getCurrentShelf();
+         synchronized(shelf) {
+             if (shelf.removeOrder(order) != null) {
+                 // Order successfully removed
+                 double value = order.getCurrentValue();
+                 ordersById.remove(orderId);
+                 logAction("PICKED_UP", order, shelf.getType());
+                 
+                 // Track statistics
+                 deliveredCount.incrementAndGet();
+                 
+                 // If value <= 0, order was technically "waste" at pickup time
+                 if (value <= 0) {
+                     System.out.println(formatTimestamp() + " WARNING: Order " + orderId + 
+                                        " was picked up with zero value (expired)");
+                 }
+             } else {
+                 // Order not found on shelf (race condition, picked up by another thread)
+                 System.out.println(formatTimestamp() + " COURIER_MISS: Order " + orderId + 
+                                    " not found on expected shelf (likely discarded or race condition)");
+             }
+         }
+     }
+     ```
+   
+   - **Order Expiration Monitor**: Periodically scan shelves for expired orders
+     ```java
+     public void removeExpiredOrders() {
+         Shelf[] allShelves = new Shelf[]{hotShelf, coldShelf, roomTempShelf};
+         
+         for (Shelf shelf : allShelves) {
+             synchronized(shelf) {
+                 List<Order> orders = shelf.getOrdersSnapshot();
+                 for (Order order : orders) {
+                     if (order.getCurrentValue() <= 0) {
+                         // Order has expired, remove it
+                         if (shelf.removeOrder(order) != null) { // Check if remove succeeded (wasn't picked up concurrently)
+                             ordersById.remove(order.getId());
+                             logAction("DISCARD", order, shelf.getType()); // Log as DISCARD (reason: expired)
+                             // Track statistics
+                             wastedCount.incrementAndGet();
+                         }
+                     }
+                 }
+             }
+         }
+     }
+     ```
+   
+   - **Order Producer and Courier Scheduling**:
+     ```java
+     public void startSimulation(List<Order> orders, double orderRate, int minPickupDelay, int maxPickupDelay) {
+         // Calculate interval between orders in milliseconds
+         long orderIntervalMs = (long)(1000 / orderRate);
+         
+         // Create thread pools - consider using Virtual Threads if JDK 21+
+         // ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4); // Platform threads
+         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory()); // Virtual threads (JDK 21+)
+         
+         ThreadLocalRandom random = ThreadLocalRandom.current();
+         
+         // Process each order
+         AtomicInteger index = new AtomicInteger(0);
+         
+         // Schedule order production at fixed rate
+         scheduler.scheduleAtFixedRate(() -> {
+             int i = index.getAndIncrement();
+             if (i >= orders.size()) {
+                 // All orders processed, check if we can shut down
+                 if (ordersById.isEmpty()) {
+                     scheduler.shutdown();
+                     printSummary();
+                 }
+                 return;
+             }
+             
+             Order order = orders.get(i);
+             
+             // Place order in kitchen
+             placeOrder(order);
+             
+             // Schedule courier pickup with random delay
+             int pickupDelay = random.nextInt(minPickupDelay, maxPickupDelay + 1);
+             scheduler.schedule(() -> {
+                 pickupOrder(order.getId());
+             }, pickupDelay, TimeUnit.SECONDS);
+             
+         }, 0, orderIntervalMs, TimeUnit.MILLISECONDS);
+         
+         // Schedule expired order checker (every 1 second)
+         scheduler.scheduleAtFixedRate(this::removeExpiredOrders, 1, 1, TimeUnit.SECONDS);
+     }
+     ```
+   
+   - **Logging and Action Tracking**:
+     ```java
+     private final AtomicInteger deliveredCount = new AtomicInteger(0);
+     private final AtomicInteger wastedCount = new AtomicInteger(0);
+     private final long startTime = System.currentTimeMillis();
+     
+     private String formatTimestamp() {
+         long elapsed = System.currentTimeMillis() - startTime;
+         return String.format("[+%.3fs]", elapsed / 1000.0);
+     }
+     
+     private void logAction(String action, Order order, ShelfType shelfType) {
+         // Value calculation might need care if called outside locks or if state changes
+         double value = order.getCurrentValue(); 
+         String message = String.format("%s %-9s Order %s (%s, temp=%s) %s %s Shelf (Value: %.2f)",
+             formatTimestamp(),
+             action,
+             order.getId(),
+             order.getName(), // Assuming Order has getName()
+             order.getTemp(),
+             action.equals("PLACED") || action.equals("MOVE") ? "on" : "from",
+             shelfType,
+             value
+         );
+         System.out.println(message);
+     }
+     
+     private void printSummary() {
+         int delivered = deliveredCount.get();
+         int wasted = wastedCount.get();
+         // Assuming ordersReceived is tracked elsewhere or calculated
+         int totalAttempted = delivered + wasted + ordersById.size(); // Approximate total if not tracked explicitly
+         double successRate = (totalAttempted > 0) ? (delivered * 100.0) / totalAttempted : 0.0;
+
+         System.out.println("\n=== SIMULATION SUMMARY ===");
+         System.out.println("Total orders processed (attempted/completed): " + totalAttempted);
+         System.out.println("Successfully delivered: " + delivered);
+         System.out.println("Wasted/discarded (including expired): " + wasted);
+         System.out.println("Remaining on shelves: " + ordersById.size());
+         System.out.println("Delivery success rate (delivered / total attempted): " + String.format("%.1f%%", successRate));
+         System.out.println("==========================\n");
+     }
+     ```
+   
+   - **Main Application Entry Point**:
+     ```java
+     public static void main(String[] args) throws Exception {
+         // Parse command line arguments for configuration
+         double orderRate = 2.0; // default: 2 orders/second
+         int minPickupDelay = 4;  // default: 4 seconds
+         int maxPickupDelay = 8;  // default: 8 seconds
+         String ordersFile = "orders.json";
+         String authToken = null; // Required
+         
+         // Override defaults with command line args if provided
+         // Use Picocli or similar for robust parsing
+         // Example: authToken = getArg("--auth", args);
+         // Example: orderRate = Double.parseDouble(getArg("--rate", args, "2.0"));
+         
+         // Load orders from JSON file
+         // OR: Fetch orders from Challenge Server using authToken and client
+         ChallengeClient client = new ChallengeClient(authToken);
+         TestProblem problem = client.fetchNewProblem();
+         List<Order> orders = problem.getOrders();
+         String testId = problem.getTestId();
+         
+         // Create kitchen - adjust capacities based on requirements or config
+         Kitchen kitchen = new Kitchen(); // Uses fixed capacities from Challenge.md
+         
+         // Start simulation
+         SimulationService simService = new SimulationService(kitchen, client, testId);
+         simService.runSimulation(orders, orderRate, minPickupDelay, maxPickupDelay);
+         
+         // Wait for simulation to complete
+         // SimulationService.runSimulation should block or provide a way to wait
+         // e.g., simService.awaitCompletion();
+         
+         // Submit results
+         simService.submitResults();
+     }
+     ```
+
+8. **Optimization**: Tune the system for performance and better order fulfillment rates.
+   - **Intelligent Discard Strategy**: Instead of random discard (or simple lowest value), consider more sophisticated strategies like Least Recently Used (LRU) or combination factors if needed. The current "lowest value" strategy is a good starting point.
+   - **Lock Granularity**: Evaluate if `synchronized` blocks become bottlenecks. Consider finer-grained locks (e.g., `ReentrantLock`) or lock-free structures if profiling shows contention. See note in Tech Stack section.
+   - **Thread Pool Sizing**: Adjust thread pool sizes (especially if using platform threads) based on expected load and available cores. Virtual threads largely mitigate this concern.
+   - **Value Calculation Optimization**: Cache or reduce frequency of value recalculation to minimize CPU impact
+   - **Shelf Management**: Consider keeping temperature-sensitive orders on their ideal shelves when possible
+
+9. **Reliability**: Ensure the system handles edge cases and failure scenarios.
+   - **Functional Tests**:
+     - Verify shelf operations (add, remove, move between shelves) for all types (Hot, Cold, Room Temp).
+   - **Concurrency Tests**:
+     - High-load scenarios (many orders arriving simultaneously)
+     - Edge cases (very short shelf life orders, all shelves full)
+     - Race conditions (order expiring exactly at pickup time)
+   - **Fault Tolerance**:
+     - Exception handling in all thread operations
+     - Graceful shutdown ensuring all orders are accounted for
+     - Verification that orders are either delivered or explicitly discarded (check `printSummary` logic).
+   - **Validation**:
+     - Confirm total orders = delivered + wasted
+     - Verify action ledger shows complete history for each order
+
+## Role Descriptions
+
+1. Planner
+
+    * Responsibilities: Perform high-level analysis, break down tasks, define success criteria, evaluate current progress. When doing planning, always use high-intelligence models (OpenAI o3 via codex commandline tool, see details in the `Tools` section). Planner must **first** call o3 to obtain an action plan, then may perform minimal local adjustments or formatting, but **must not skip the o3 analysis step**.
+*   **Cursor Composer Planner Actions (Resulting in Terminal Output with `codex_response.txt` for Executor)**:
+    * 0. Once you receive the user or executor's inquiry/comment/question from Cursor Composer Chat panel, follow these guidelines in the `Thinking Deep` section and formulate your response.
+    * 1. If your found requirements from USER are not clear, you can ask for further clarification from user. Then go back to step 0. Otherwise, go to step 2.
+    * 2. Call command line to get the current time in UTC-8 as `system_time_pst` and create a file named `.scratchpad/{system_time_pst}_plan_request.md` with planner_prompt_template.md as template:
+        ```zsh
+         TIMESTAMP=$(date -v-8H "+%Y-%m-%dT%H:%M:%S" | tr ":" "_") && TARGET_FILE=".scratchpad/${TIMESTAMP}_plan_request.md" && cp planner_prompt_template.md "${TARGET_FILE}" && echo -e "\n--------------------------------------------------\n✅ Initial file created successfully:\n  📄 Path: ${TARGET_FILE}\n  📝 Template: planner_prompt_template.md\n\n➡️ Next step: Please autonomously fill the {xxxx} placeholders in the created .md file with the relevant content for the o3 model to analyze based on your understanding of user's requirements.\n\n> Note: There might be placeholders with filling instruction, e.g.{file_absolute_paths: <filling_instruction>},\n> or self-explanatory placeholders like {interpretation_of_user_query}. --------------------------------------------------\n"
+        ```
+       - An example created file: `.scratchpad/2025-04-20T08_11_37_plan_request.md`
+    * 3.Please autonomously fill the {xxxx} placeholders in the created .md file with the relevant content for the o3 model to analyze based on your understanding of user's requirements.
+    
+    > Note: There might be placeholders with filling instruction, e.g.{file_absolute_paths: <filling_instruction>},
+    > or self-explanatory placeholders like {user_prompt}. 
+
+        - An example created file: `.scratchpad/2025-04-20T08_11_37_plan_request.md`
+    * 4. Call the command line tool `codex` to submit newly created plan request .md file to the o3 model for advanced analysis by running the optimized bash script `run_codex_plan.sh`.
+        
+        > The optimized bash script `run_codex_plan.sh` located in the section '1 — Dynamic plan request file finder and codex runner' automatically finds the latest `.scratchpad/*_plan_request.md` file and runs it against the o3 model.
+        
+    * 5. Switch to the Executor role, and address the response from the o3 model printed in the terminal.
+
+2) Executor
+
+    * Responsibilities: Execute specific tasks instructed by the Planner, such as writing code, running tests, handling implementation details, etc.. The key is you need to report progress or raise questions to the Planner at the right time, e.g. after completion some milestone or after you have hit a blocker.
+    * **Cursor Composer Executor Actions**:
+    * 0. Once you receive the inquiry/comment/question of user from Cursor Composer Chat panel, follow the guidelines in the `Thinking Deep` section to think deep and address them.
+    * 1. If your found requirements from USER are not clear, you can ask for further clarification from user. Then go back to step 0. Otherwise, go to step 2.  
+    * 2. Go through the following steps: 
+            * 1.1. if you need assistance/more information from Planner:
+                - make incremental updates to the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections in `scratchpad.md`. 
+            * 1.2. if you finish addressing the response from the o3 model:
+                - strike through related content in the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections in `scratchpad.md`.
+                - make incremental updates to the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections in `scratchpad.md`.
+            * 1.3. if you complete a subtask in `High-level Task Breakdown` of the `Multi-Agent Scratchpad` section of `scratchpad.md`:
+                - strike through the subtask in the `High-level Task Breakdown` section of `scratchpad.md`   
+                - make incremental updates to the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections of `scratchpad.md`
+    * 3. After you've made the updates, switch to the Planner role and continue the cycle by executing step 2 of the above Planner Actions.
+
+## Document Conventions
+
+* The `Multi-Agent Scratchpad` section of `scratchpad.md` file is divided into several sections as per the above structure. Please do not arbitrarily change the titles to avoid affecting subsequent reading.
+* Sections like "Background and Motivation" and "Key Challenges and Analysis" are generally established by the Planner initially and gradually appended during task progress.
+* "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" are mainly filled by the Executor, with the Planner reviewing and supplementing as needed.
+* "Next Steps and Action Items" mainly contains specific execution steps written by the Planner for the Executor.
+
+## Workflow Guidelines
+
+* After you receive an initial prompt for a new task, update the "Background and Motivation" section in `scratchpad.md`, and then invoke the Planner to do the planning.
+* When thinking as a Planner, always follow the guidelines in the `Planner Actions` section to call the o3 model for deep analysis, recording results in sections like "Key Challenges and Analysis" or "High-level Task Breakdown" in `scratchpad.md`. Also update the "Background and Motivation" section.
+* When you as an Executor receive new instructions, use the existing cursor tools and workflow to execute those instructions. And follow the guidelines in the `Executor Actions` section to update the `Multi-Agent Scratchpad` section of `scratchpad.md`.
+* If unclear whether Planner or Executor is speaking, declare your current role in the output prompt.
+* Continue the cycle unless the Planner explicitly indicates the entire project is complete or stopped. Communication between Planner and Executor is conducted through writing to or modifying the `Multi-Agent Scratchpad` section of `scratchpad.md`.
+
+Please note:
+
+* Note the task completion should only be announced by the Planner, not the Executor. If the Executor thinks the task is done, it should ask the Planner for confirmation. Then the Planner needs to do some cross-checking.
+* Avoid rewriting the entire document unless necessary;
+* Avoid deleting records left by other roles; you can append new paragraphs and strike through old paragraphs;
+* When new external/contextual/deep analysis information is needed, you can use MCP tools (like exa ai-powered search 'web_search', Pieces RAG 'ask_pieces_ltm', or Gemini Thinking 'geminithinking'), but document the purpose and results of such requests in `scratchpad.md`;
+* Before executing any large-scale changes or critical functionality, the Executor should first notify the Planner in "Executor's Feedback or Assistance Requests" (in `scratchpad.md`) to ensure everyone understands the consequences. 
+* During you interaction with the user, if you find anything reusable in this project (e.g. version of a library, model name), especially about a fix to a mistake you made or a correction you received, you should take note in the `Lessons` section in the `scratchpad.md` file so you will not make the same mistake again. 
+
+# Tools
+
+## OpenAI o3 model via codex commandline tool
+
+### Basic Usage
+
+See the `Planner Actions` section steps 2 through 5 for details.
+
+### Optimised guideline
+
+#### 1 — Dynamic plan request file finder and codex runner
+
+**run_codex_plan.sh**
+
+```bash
+#!/usr/bin/env bash
+set -eo pipefail
+
+# 0. Find the latest plan request file and load its content
+#    Strips newlines while preserving utf-8
+SCRATCH=$(ls .scratchpad/*_plan_request.md | sort | tail -n 1)
+if [[ -z "$SCRATCH" || ! -f "$SCRATCH" ]]; then
+  echo "Error: No plan request file found in .scratchpad/" >&2
+  exit 1
+fi
+PROMPT=$(awk 'BEGIN{ORS="";} {gsub(/\r/,""); print}' "$SCRATCH")
+
+
+# 1. Run Codex inside a pseudo‑TTY so Ink UI stays intact
+#    Use -qj for --quiet --json
+script -q /dev/null \
+  codex -qj -a full-auto -m o3 \
+        --project-doc "$HOME/Projects/cloudkitchen/scratchpad.md" \
+        "$PROMPT" |
+
+# 2. Parse JSON‑Lines; join every assistant chunk into one block
+#    Use try-catch for resilience against malformed JSON
+jq -r 'try (
+  select(.type=="message" and .role=="assistant")
+  | .content[]?                                     # tolerate missing field
+  | select(.type=="output_text")
+  | .text
+) catch ""' | tee codex_response.txt # Save response to file and print to stdout
+
+# Exit with the exit code of the codex command (preserved by pipefail)
+exit $? 
+```
+
+> **What changed?**
+> 
+> -   Dynamically finds the latest `*_plan_request.md` file using `ls | sort | tail -n 1`.
+> -   Includes basic error handling if no file is found.
+> -   `-qj` is shorthand for `--quiet --json`.
+> -   `awk` substitutes `tr -d '\n'`, saving a subshell and preserving multibyte characters.
+> -   `script -q /dev/null …` remains a safe portable pseudo‑TTY pattern.
+> -   The `jq` filter uses `try-catch` for resilience and emits **exactly one block**.
+> -   `tee codex_response.txt` saves the output while also printing it.
+> -   `exit $?` ensures the script exits with Codex's status code.
+
+#### 2 — Failure‑resilient variant (optional)
+
+The main script above already incorporates the `try-catch` logic in `jq` for resilience.
+
+___
+
+#### 3 — Cursor Composer integration checklist
+
+| Step | Action | Purpose |
+| --- | --- | --- |
+| **Pre‑run** | Export `OPENAI_MAX_RETRIES=5` & `OPENAI_MS_BETWEEN_RETRIES=4000` | Smooth over transient 429s [GitHub](https://github.com/mmabrouk/chatgpt-wrapper/issues/265?utm_source=chatgpt.com) |
+| **Invoke** | Spawn the shell script via `pieces ask` / `cursor exec` (keyboard macro) | Keeps Composer context minimal |
+| **Capture** | Read `codex_response.txt` or consume stdout | Single block, safe to insert |
+| **Patch** | Apply result from `codex_response.txt` or stdout to `scratchpad.md` or target files using standard diff/patch formats | Consistent with existing workflow |
+
+___
+
+#### 4 — Future micro‑optimisations
+
+-   **JSON path selector** – When Codex ships _streaming chunk indices_ (open PR #178), change the filter to `.| sort_by(.chunk) | …` for guaranteed order.
+    
+-   **Parallel prompts** – Use GNU `parallel` to pipe multiple scratchpads, leveraging Codex's tokenizer reuse for ~30 % speed‑up in batch CI [GitHub](https://github.com/Correia-jpv/fucking-awesome-zsh-plugins?utm_source=chatgpt.com).
+    
+-   **Memory footprint** – Replace `script` with the lighter `unbuffer` from `expect` if Ink logs are unnecessary (~14 MB RSS saved) [Stack Overflow](https://stackoverflow.com/questions/70006317/jq-modify-object-that-is-the-result-of-a-filter-while-keeping-the-original-stru?utm_source=chatgpt.com).
+
+## Exa MCP
+
+[Exa MCP Server](https://github.com/exa-labs/exa-mcp-server/) enables AI assistants like Claude to perform real-time web searches through the Exa Search API, allowing them to access up-to-date information from the internet in a safe and controlled way.
+
+-   Real-time web searches with optimized results
+-   Structured search responses (titles, URLs, content snippets)
+-   Support for specialized search types (web, academic, social media, etc.)
+
+### Available Tools
+
+Exa MCP includes several specialized search tools:
+
+| Tool | Description |
+| --- | --- |
+| `web_search` | General web search with optimized results and content extraction |
+| `research_paper_search` | Specialized search focused on academic papers and research content |
+| `twitter_search` | Finds tweets, profiles, and conversations on Twitter/X |
+| `company_research` | Gathers detailed information about businesses by crawling company websites |
+| `crawling` | Extracts content from specific URLs (articles, PDFs, web pages) |
+| `competitor_finder` | Identifies competitors of a company by finding businesses with similar offerings |
+
+> [!NOTE] Make sure to run exa mcp server in a separate terminal with CLI command:
+> ```
+> npx exa-mcp-server --tools=research_paper_search,company_research,crawling,competitor_finder,web_search,twitter_search
+> ```
+> before you use the tools. Recommended to use pm2 to auto start the server.
+
+## Gemini Thinking Server MCP
+
+### What the tool is for  
+`geminithinking` lives on the Gemini Thinking Server, an MCP server that wraps Google Gemini to produce **sequential, branch‑able "thoughts" and meta‑commentary** (confidence, alternative paths) but **never generates code**. It shines when we need *analysis before action*—architecture reviews, refactor plans, risk audits, etc.
+
+### When to call this tool (Executor Role)
+
+A detailed tool for dynamic and reflective problem‑solving through Gemini AI. Each thought can build on, question, or revise previous insights as understanding deepens.
+
+Use this tool when you need:
+- Breaking down complex problems into clear steps  
+- Planning and design with room for revision  
+- Analysis that may require mid‑course corrections  
+- Exploration when the full scope is not yet clear  
+- Multi‑step solutions that maintain context across steps  
+- Filtering out irrelevant information to stay focused  
+
+Key features:
+- Leverages Google Gemini for deep analytical reasoning  
+- Provides meta‑commentary on the reasoning process  
+- Indicates confidence levels (0–1) for each thought  
+- Suggests alternative approaches when relevant  
+- Supports dynamic adjustment of total_thoughts  
+- Allows thought revisions (is_revision) and branching (branch_id)  
+- Enables adding new thoughts even after an apparent conclusion  
+- Expresses uncertainty and explores alternate paths  
+- Maintains session persistence via sessionCommand and sessionPath  
+
+Core parameters:
+- query: The question or problem to analyze  
+- *** context: Additional context (e.g., codebase snapshot). Specific for this project, set context to 'cloudkitchen_repo_mix.md"'. *** 
+- approach: Preliminary suggested approach (optional)  
+- previousThoughts: Array of earlier thoughts for continuity  
+- thought: The current thinking step (leave blank to let Gemini generate it)  
+- next_thought_needed: true if more steps are required  
+- thought_number: Sequence number of this thought  
+- total_thoughts: Estimated total number of thoughts (adjustable)  
+- is_revision: true if revising a previous thought  
+- revises_thought: Index of the thought being reconsidered  
+- branch_from_thought: Thought number at which branching occurs  
+- branch_id: Identifier for the current branch  
+- needs_more_thoughts: true if additional thoughts are needed beyond the estimate  
+- metaComments: Gemini's meta‑commentary on the reasoning  
+- confidenceLevel: Gemini's confidence in this thought (0–1)  
+- alternativePaths: Suggested alternative reasoning pathways  
+
+Session commands:
+- sessionCommand: 'save', 'load', or 'getState'  
+- sessionPath: File path for saving/loading sessions  
+
+> Note: **Never** ask Gemini for source code snippets; its guard-rails block code generation. Use it for analysis and planning, then use standard tools for coding.
+
+Recommended usage:
+1. Supply a clear query and set context="cloudkitchen_repo_mix.md" for codebase insight  
+  > Tip: Before setting context parameter, run cmd 'repomix' to consolidate the codebase context into cloudkitchen_repo_mix.md file. Then set context to 'cloudkitchen_repo_mix.md'
+2. Omit the thought parameter to let Gemini generate initial steps  
+3. Review generated thoughts and metaComments  
+4. Use is_revision or branch_id to refine or branch the analysis  
+5. Explore alternativePaths before concluding  
+6. Only set next_thought_needed to false when truly done  
+7. Manage long‑lived analyses with sessionCommand and sessionPath  
+
+### Starting the server (local dev)
+
+You might need to run the server locally:
+```bash
+# clone & install
+git clone https://github.com/bartekke8it56w2/new-mcp
+cd new-mcp && npm install && npm run build
+
+# export your Gemini key
+export GEMINI_API_KEY="<your_key>"
+
+# launch
+node dist/gemini-index.js
+```
+
+## Sequential Thinking MCP Server Guidance
+
+When invoking the Sequential Thinking MCP Server, follow this process to generate a clear execution plan:
+
+1.  **Decompose Tasks**:
+    *   Break down the given `[TASK]` into smaller, self-contained subtasks.
+2.  **Sequence Steps**:
+    *   For each subtask, list detailed step-by-step instructions in execution order.
+3.  **Identify Dependencies**:
+    *   Clearly identify dependencies between subtasks to optimize execution order and task prioritization.
+
+**Prompt Template: Task Breakdown**
+"Decompose the following `[TASK]` into manageable subtasks. For each subtask, provide step-by-step instructions and explicitly identify any dependencies between subtasks to optimize workflow and task prioritization for efficient completion."
+
+4.  **Enhance Plan with Web Search**:
+    *   Use the Exa MCP Server (`web_search`) or DuckDuckGo MCP (`duckduckgo_web_search`) to retrieve the 5 most recent results related to the `[TASK]`.
+    *   Extract key trends, insights, or updates.
+    *   Adjust the task breakdown and dependencies based on the search results to keep the plan aligned with the latest information.
+
+**Prompt Template: Web Search**
+"Search `[TASK]` using `[SERVICE]` and return the top 5 most recent and relevant insights. For each result, identify what resources or actions are needed to optimize workflow and task prioritization for efficient completion."
+
+5.  **Iterate and Refine**:
+    *   Integrate the search findings into the original plan.
+    *   If new dependencies or information arise, repeat the decomposition and sequencing steps.
+    *   Continuously iterate until the plan is comprehensive, actionable, and synchronized with the latest context.
+
+## GitMCP for Kitchen Flow (Executor Tool Context)
+
+This set of tools connects to a specialized GitMCP server configured for the `ifsantana/kitchen-flow` GitHub repository. It transforms that repository into a documentation and code hub, allowing the Executor (Cursor Composer) to access up-to-date, accurate information directly, effectively eliminating code hallucinations and ensuring actions are based on the actual project state.
+
+### 🛠️ Available Tools for `kitchen-flow`
+
+*   **`fetch_kitchen_flow_documentation`**
+    *   **Purpose**: Retrieves the primary documentation (`llms.txt`, `README.md`) from the `ifsantana/kitchen-flow` repository.
+    *   **When to use**: For general understanding of the `kitchen-flow` project's purpose, core features, or how to get started. Useful when you need a broad overview before diving into specifics.
+
+*   **`search_kitchen_flow_documentation`**
+    *   **Purpose**: Performs a semantic search within the `kitchen-flow` documentation using a specific query. Avoids loading the entire documentation set.
+    *   **When to use**: When you have specific questions about particular features, functions, design choices, or concepts detailed within the `kitchen-flow` documentation.
+
+*   **`fetch_generic_url_content`**
+    *   **Purpose**: Fetches content from absolute URLs referenced within the `kitchen-flow` documentation or other fetched content. Converts the external content into a readable format.
+    *   **When to use**: When the `kitchen-flow` documentation points to external resources (e.g., specific library docs, API specifications) needed to understand a concept or complete a task. *Use the `url` parameter to specify the absolute URL.*
+
+*   **`search_kitchen_flow_code`**
+    *   **Purpose**: Searches the actual code within the `ifsantana/kitchen-flow` repository using GitHub's code search capabilities.
+    *   **When to use**: When you need concrete code examples, want to understand how a specific function is implemented in `kitchen-flow`, or require technical details not covered in the main documentation.
+
+> By leveraging these tools, the Executor can ground its actions and code generation in the actual, current state of the `ifsantana/kitchen-flow` project, ensuring accuracy and relevance.
+
+
+## Pieces MCP
+
+[Pieces MCP](https://docs.pieces.app/products/mcp) is a tool that allows you to query Pieces LTM with natural language questions to retrieve context.
+
+### Basic Queries
+
+You can start prompting with simple user queries, such as:
+
+1.  "What was I working on yesterday?"
+    
+2.  "Ask Pieces what files I modified last week."
+    
+3.  "What Google docs were I referring to this morning before my stand-up meeting?"
+    
+### Advanced Parameters
+
+To refine your queries further, consider using parameters such as time ranges, application sources, or specific topics.
+
+-   **Time Ranges**—Try prompting using time ranges, such as "yesterday" or "April 2nd through April 6th" for more accurate, time-based questions.
+    
+-   **Application Sources**—Ask Pieces to provide contextual data from specific sources, like "Stack Overflow pages I visited on Chrome" or "meeting notes from Notion" to refine source data.
+    
+-   **Topics**—If your work is spread across different projects, get more accurate responses by including topic-specific keywords, like "Show recent work I've done on the authentication migration project".
+
+### Combining Parameters
+
+Combine parameters for precise queries—like mixing topic keywords with a specific application name within the scope of a timeframe.
+
+Here are some examples of multi-paramater prompting:
+
+1.  "What JavaScript code related to API authentication did I write in VS Code yesterday?"
+    
+2.  "Find notes on database changes between Monday and Wednesday."
+    
+## Controlling Agent Responses with Pieces MCP
+
+You can also control the agent's actions directly through your prompts, allowing Pieces MCP to first retrieve relevant data from your context, then instruct the agent to perform specific tasks or updates.
+
+Here's an example:
+-   **Prompt:**_"What is the package version update that Mark asked me to make? Make the relevant update in my package manifest."_
+    
+-   **Outcome:** Pieces MCP retrieves Mark's requested package version update from your context, then automatically directs the agent to apply this update to your `package.json` manifest.    
+
+## Effective Prompting Tips
+
+Sometimes, it can be challenging to create a prompt that gets you exactly what you need.
+
+When using Pieces, especially with its large, on-device repository of personalized workflow data, it's best to use more specific prompts.
+
+Use these techniques and tips to refine your prompting:
+
+-   Clearly specify _timeframes_.
+    
+-   Mention relevant _applications_.
+    
+-   Include _technical keywords_ relevant to your query.
+    
+-   Refer explicitly to _open files_ when relevant.
+    
+-   Ask _follow-up questions_ for refined results.
+    
+
+If you want to read more information on LTM prompting, [check out this guide.](https://docs.pieces.app/products/quick-guides/ltm-prompting)
+
+### Examples of Effective Prompts
+
+Check out these example prompts to see how to effectively combine parameters for specific AI outputs using the Pieces MCP for your Agent.
+
+Development Context
+
+-   "Show examples of React Context usage."
+    
+-   "What was my last implementation of API error handling?"
+    
+-   "Have I previously optimized rendering performance in React components?"
+    
+
+Project History
+
+-   "Track the evolution of the dashboard feature."
+    
+-   "Review documented challenges with the payment system."
+    
+-   "Show the decisions made around UI updates for the onboarding flow."
+    
+
+Learning Retrieval
+
+-   "Find recent bookmarks about Kubernetes."
+    
+-   What resources did I save recently related to Python decorators?
+    
+-   "Show notes taken about GraphQL in March."
+
+Code & Collaboration
+
+-   "Show code review comments related to database indexing."
+    
+-   "Did we finalize naming conventions for the latest API endpoints?"
+    
+-   "What feedback did I leave on recent pull requests?"
+

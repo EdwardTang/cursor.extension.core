@@ -1,0 +1,63 @@
+{
+    "include": [
+      "**/*.py",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.jsx",
+      "**/*.tsx",
+      "**/*.md",
+      "**/*"
+    ],
+    "ignore": {
+      "useGitignore": true,
+      "useDefaultPatterns": true,
+      "customPatterns": [
+        "node_modules/**/*",
+        ".specstory/**/*",
+        "repomix.config.json",
+        "cloudkitchen_repo_mix.md",
+        "venv/**/*",
+        "**/__pycache__/**",
+        "**/test/**",
+        "**/assets/**",
+        ".cursorignore",
+        ".cursorconfig",
+        ".gitignore",
+        ".git",
+        ".github",
+        ".vscode",
+        ".cursor/**/*",
+        ".cursorindexingignore",
+        ".windsurf_file.md",
+        "**/*.pdf",
+        "**/*.docx",
+        "**/*.doc",
+        "**/*.xls",
+        "**/*.xlsx",
+        "**/*.ppt",
+        "**/*.pptx",
+        "**/*.log",
+        "**/.gradle/**/*",
+        "**/*.zip"
+      ]
+    },
+    "security": {
+      "enableSecurityCheck": true
+    },
+    "tokenCount": {
+      "encoding": "o200k_base"
+    },
+    "output": {
+      "filePath": "cloudkitchen_repo_mix.md",
+      "style": "markdown",
+      "parsableStyle": true,
+      "compress": false,
+      "headerText": "Custom header information for the packed file.",
+      "fileSummary": true,
+      "directoryStructure": true,
+      "removeComments": false,
+      "removeEmptyLines": false,
+      "showLineNumbers": false,
+      "includeEmptyDirectories": false
+    }
+  }

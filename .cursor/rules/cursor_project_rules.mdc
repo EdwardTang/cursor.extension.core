@@ -1,0 +1,119 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## Project Overview
+
+* **Type:** Backend System
+* **Description:** Real-time system for managing orders in a cloud kitchen with high concurrency, intelligent shelf management, and comprehensive logging for order placement, storage, and pickup.
+* **Primary Goal:** Implement an efficient and scalable solution that manages order flows, shelf assignments (hot, cold, room, overflow), and timely actions submission while ensuring thread safety and performance under high concurrency.
+
+## Project Structure
+
+### Framework-Specific Routing
+
+* **Directory Rules:**
+
+    * While typical routing patterns (e.g., Next.js App Router or React Router) do not apply to a Java backend project, follow package-based routing: structure your code in meaningful packages such as `com.cloudkitchen.orders`, `com.cloudkitchen.shelves`, and `com.cloudkitchen.services` to reflect route-like logical divisions.
+    * Example: Package `com.cloudkitchen.api` handles API endpoints using frameworks like Spring Boot if needed.
+
+### Core Directories
+
+* **Versioned Structure:**
+
+    * `src/main/java`: Contains all Java source code, including core classes such as `Order`, `Shelf`, `KitchenManager`, `CourierService`, and `OrderProducer`.
+    * `src/main/resources`: Contains external configuration files (e.g., `.properties`, `.yaml`), logging configurations, and any static assets.
+    * `src/test/java`: Contains JUnit test cases for unit and integration testing of the core system components.
+
+### Key Files
+
+* **Stack-Versioned Patterns:**
+
+    * `src/main/java/com/cloudkitchen/Main.java`: Entry point for the application that initializes services and triggers the order processing flow.
+    * `src/main/java/com/cloudkitchen/manager/KitchenManager.java`: Manages order placement on designated shelves and handles overflow, repositioning, and discarding based on freshness.
+    * `src/main/java/com/cloudkitchen/model/Order.java`: Defines the data structure for orders, including properties like id, temperature, shelfLife, decayRate, etc.
+    * `src/main/java/com/cloudkitchen/service/CourierService.java`: Implements order pickup scheduling using ScheduledExecutorService.
+    * `src/main/java/com/cloudkitchen/producer/OrderProducer.java`: Fetches orders from the challenge server or reads orders from a file.
+
+## Tech Stack Rules
+
+* **Version Enforcement:**
+
+    * `java@>=8`: Utilize the mature concurrency libraries such as `java.util.concurrent` (ExecutorService, BlockingQueue, ConcurrentHashMap) and `ScheduledExecutorService` for scheduling tasks.
+    * Logging frameworks (e.g., SLF4J/Log4j) must be configured to use asynchronous logging where possible.
+    * Build Tools: Use Maven or Gradle for dependency management and structured project builds.
+
+## PRD Compliance
+
+* **Non-Negotiable:**
+
+    * "Handle 10-20 orders per second (with bursts up to 50-100), ensuring 95% of requests respond under 50ms."
+    * "Thread-safe operations and prevention of deadlocks are essential for managing high concurrency." 
+    * "Logging must be comprehensive and atomic, capturing all actions with timestamps and order IDs."
+    * "Dynamic configuration is required to adjust shelf capacities, order rates, pickup delays, and decay factors at runtime."
+
+## App Flow Integration
+
+* **Stack-Aligned Flow:**
+
+    * The flow begins with `OrderProducer` fetching orders, followed by `KitchenManager` placing the orders on the appropriate shelf (or overflow) using synchronized and thread-safe collections. 
+    * `CourierService` then schedules pickups using `ScheduledExecutorService`, ensuring that orders are handled appropriately based on freshness and capacity constraints.
+
+## Best Practices
+
+* **Java**
+
+    * Use thread-safe collections (e.g., ConcurrentHashMap, ConcurrentLinkedQueue) and synchronized blocks to handle concurrency.
+    * Leverage ExecutorService and ScheduledExecutorService to manage asynchronous tasks and scheduled operations.
+    * Implement robust exception handling to capture and log RuntimeExceptions without halting the system.
+    * Write clean, modular code adhering to SOLID principles.
+
+* **Maven/Gradle**
+
+    * Maintain proper dependency management and version control.
+    * Create separate modules for core logic and testing.
+    * Automate build and test processes using CI/CD pipelines.
+
+* **Configuration Management**
+
+    * Externalize configurations by using .properties or .yaml files and allow overrides via environment variables or command-line arguments.
+    * Validate configuration inputs at startup and provide sensible defaults.
+
+* **Logging**
+
+    * Use asynchronous logging where possible to ensure that logs do not become a bottleneck.
+    * Ensure logs capture all critical events along with timestamps and identifiers for efficient debugging and monitoring.
+
+* **Testing**
+
+    * Use JUnit (or similar frameworks) to write comprehensive tests covering concurrency and edge cases.
+    * Mock external API calls to ensure reliability in integration testing.
+
+## Rules
+
+* Derive folder/file patterns **directly** from tech stack documentation and version requirements.
+* If using frameworks like Spring Boot for API endpoints, enforce proper package structures instead of web-specific routing conventions.
+* Mirror consistent logic for concurrency and configuration management across different components of the project.
+* Never mix incompatible patterns; maintain clear separation of concerns (e.g., do not mix synchronous and asynchronous logging strategies).
+
+## Rules Metrics
+
+Before starting the project development, create a metrics file in the root of the project called
+
+`cursor_metrics.md`.
+
+### Instructions:
+
+* Each time a cursor rule is used as context, update `cursor_metrics.md`.
+
+* Use the following format for `cursor_metrics.md:`
+
+# Rules Metrics
+
+## Usage
+The number of times rules is used as context
+
+* rule-name.mdc: 5
+* another-rule.mdc: 2
+* ...other rules
