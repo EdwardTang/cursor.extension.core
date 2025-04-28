@@ -14,8 +14,9 @@
       "customPatterns": [
         "node_modules/**/*",
         ".specstory/**/*",
+        ".scratchpad_logs/**/*",
         "repomix.config.json",
-        "cloudkitchen_repo_mix.md",
+        "repo_mix.md",
         "venv/**/*",
         "**/__pycache__/**",
         "**/test/**",
@@ -48,7 +49,7 @@
       "encoding": "o200k_base"
     },
     "output": {
-      "filePath": "cloudkitchen_repo_mix.md",
+      "filePath": "repo_mix.md",
       "style": "markdown",
       "parsableStyle": true,
       "compress": false,

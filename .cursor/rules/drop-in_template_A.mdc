@@ -18,14 +18,15 @@ The wording mirrors the style of the original Codex system -prompt—bullet -dri
 
 ---
 
-## Template A   (Planner Request → Codex)
+## Template A 
 
-````markdown
-### 🔄  Template A  — Plan -and -Execute Loop (fill all ⟦PLACEHOLDERS⟧)
+```markdown
+### 🔄  Template A  — Plan-and-Execute Loop ( If there is any instructions in ⟦PLACEHOLDERS⟧, follow instructions; otherwise agent must fill the ⟦PLACEHOLDERS WITHOUT INSTRUCTION⟧ )
 
 [📂 PROJECT]          ⟦ project_name ⟧
-[🗺️ CURRENT GOAL]     ⟦ concise, single -sentence objective for this cycle ⟧
-[📜 HISTORY PATH]      .specstory/history/⟦ related_chat_file ⟧   <!-- MD file -->
+[🗺️ CURRENT GOAL]     ⟦ concise, single-sentence objective for this cycle ⟧
+[🔢 CYCLE_NUMBER]     ⟦ integer representing the current iteration number, starting from 0 or 1 ⟧
+[📜 HISTORY PATH]      .specstory/history/⟦related_chat_file_in_md ⟧ ⟦if latest commit is related to the chats, then fill this placeholder with "to ⟦latest_commit⟧⟧
 [⏳ TIME BOX]          ⟦ max minutes / pomodoros Cursor should spend ⟧
 [📎 ARTIFACTS]         ⟦ links / files / screenshots relevant right now ⟧
 [🚧 KNOWN BLOCKERS]    ⟦ short bullet list, if any ⟧
@@ -34,19 +35,19 @@ The wording mirrors the style of the original Codex system -prompt—bullet -dri
 
 #### 📝 REQUEST FOR CODEX PLANNER (you *must* output all sections)
 
-1. **PLAN** -- step -by -step actions Cursor Executor should take next (≤ 7 steps, each atomic).  
-2. **BLOCKER_SOLUTIONS** -- proposed resolutions for each blocker above (or “none”).  
-3. **BEST_PRACTICES / MENTAL_MODELS** -- transferable engineering insights to apply.  
-4. **EXECUTOR FOLLOW -UP CHECKLIST** -- ***MANDATORY*** instructions Cursor must do *after* executing:  
+1.  **PLAN** -- step-by-step actions Cursor Executor should take next (≤ 7 steps, each atomic).
+2.  **BLOCKER_SOLUTIONS** -- proposed resolutions for each blocker above (or “none”).
+3.  **BEST_PRACTICES / MENTAL_MODELS** -- transferable engineering insights to apply.
+4.  **EXECUTOR FOLLOW-UP CHECKLIST** -- ***MANDATORY*** instructions Cursor Executor must do *after* executing the plan:
 
    ```text
-   a. Summarise work done & new insights (≤ 120 words).  
-   b. Refresh BLOCKERS list (empty if solved).  
-   c. Update CURRENT_GOAL for the next cycle.  
-   d. Fill a brand -new Template A with those values → call it **Prompt A{n+1}**.  
-   e. Send Prompt A{n+1} as the final message of your response.  
+   a. Summarise work done & new insights (≤ 120 words).
+   b. Refresh BLOCKERS list (empty if solved).
+   c. Update CURRENT_GOAL for the next cycle.
+   d. Fill a brand-new Template A instance (e.g., creating `.scratchpad/YYYY-MM-DDTHH_MM_SS_plan_request.md`), copying relevant fields from the input template and **incrementing CYCLE_NUMBER by 1**. Call this **Prompt A{n+1}**.
+   e. Output Prompt A{n+1} as the final message of your response, ready for the next planning cycle.
    ```
-````
+```
 
 > **Important:** Cursor Executor treats everything above the horizontal rule as metadata and everything under **REQUEST FOR CODEX PLANNER** as Codex's authoritative instructions for the next sprint.
 

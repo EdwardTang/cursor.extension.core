@@ -1,162 +1,129 @@
-# Plan‑Execu Tight Loop — PRD & Technical System Design (v0.1)
-
-Source: https://chatgpt.com/share/680c6a03-f8d4-8006-9bc4-0dfc28804a1e
+# Oppie.xyz — Simple PRD for Plan‑Execu Tight Loop and Self-Recovery MVP (v0.2)
 
 ---
 ## 1. Overview
-Build a self‑running *Planner ⇄ Executor* loop that leverages **Reflexion‑Aligned templates**, GUI automation (Agent S or AppleScript), rate‑limit resilience, and an asynchronous diff‑driven Tracker so the system can operate autonomously while remaining aligned with human values and safe‑guards.
+Build a minimal, semi-autonomous *Planner ⇄ Executor* loop within the Cursor IDE. The **sole focus** of this MVP is to automatically detect when the Cursor Executor hits its "25 native tool calls" limit and immediately trigger a recovery mechanism via GUI automation to continue the loop.
 
 ## 2. Problem Statement
-Today Codex Planner and Cursor Executor require human copy/paste to exchange *Plan* and *PlanRequest* and manual oversight for hallucinations and Cursor tool‑call limits. We need a closed loop that:
-* Runs for hours without human intervention.
-* Surfaces deviations or value mis‑alignments immediately.
-* Recovers gracefully from Cursor’s 25 native‑tool hard limit.
+The current manual Planner-Executor workflow is interrupted when Cursor's tool call limit is reached, requiring human intervention to restart the process. This MVP aims to create a simple, automated recovery mechanism.
 
 ## 3. Guiding Principles
-1. **Alignment‑first** — every cycle embeds diagnosis, corrective actions, and alignment check.
-2. **Human‑in‑the‑loop Escalation** — loop pauses only on clearly defined guard‑rails.
-3. **Minimal Intrusion** — no brittle hacks inside Cursor; interact via GUI automation layer.
-4. **Observability** — checkpoints, diffs, reflections, and alerts are persisted and queryable.
+1.  **Simplicity First**: Implement only the core recovery logic.
+2.  **Minimal Intrusion**: Interact with Cursor externally via GUI automation; avoid internal modifications.
+3.  **Observability**: Log basic recovery actions (success/failure).
 
 ## 4. Functional Requirements
-| ID | Requirement |
-|----|-------------|
-| **FR‑1** | Enforce **Reflexion‑Aligned Template** with fields: diagnosis, action_items, alignment_check. |
-| **FR‑2** | Automate Planner⇄Executor hand‑off via Agent S (default) or AppleScript fallback. |
-| **FR‑3** | Detect Cursor native‑tool limits; apply exponential back‑off and *continue* re‑runs. |
-| **FR‑4** | Compute high‑efficiency diffs (Myers + diff‑match‑patch) and map to probability_class. |
-| **FR‑5** | Trigger LLM Reflexion when probability_class ≤ MEDIUM or after checkpoint restore. |
-| **FR‑6** | Provide three pause conditions: repeat‑error≥3, fatal executor error, deviation alert. |
-| **FR‑7** | Human operator can *resume_episode(ckpt_id)* or *restore_checkpoint*. |
+| ID      | Requirement                                                                         |
+| :------ | :---------------------------------------------------------------------------------- |
+| FR-S1   | Monitor Cursor Executor's stdout/stderr for the exact string `Exceeded 25 native tool calls`. |
+| FR-S2   | Upon detection of the error string, immediately trigger a GUI automation script.    |
+| FR-S3   | The GUI script must focus the Cursor Composer's new message input window.           |
+| FR-S4   | The GUI script must type the following fixed recovery prompt and press Enter:       |
+|         | `Cursor Executor, on top of @.cursorrules, @tech_stack.md and @scratchpad.md, strictly follow instructions from Codex Planner in the \`Template Aₓ — Plan-and-Execute Loop\` above to continue at where you stopped` |
+| FR-S5   | Log a simple `RECOVER_TRIGGERED` message when the error is detected and `RECOVER_TYPED` when the GUI action completes. |
+
+> **Note:** No backoff, retry logic, Reflexion, diffing, or alignment checks are included in this MVP.
 
 ## 5. Non‑Functional Requirements
-* **Reliability:** ≥ 99% successful iterations without manual nudge.
-* **Latency:** < 3 s added by Tracker per cycle.
-* **Security & Privacy:** no raw customer code leaves host; only diff‑hashes logged.
-* **Extensibility:** Planner/Executor interchangeable; GUI layer replaceable.
+*   **Reliability**: The GUI automation script should successfully type the prompt within ~5 seconds of error detection.
+*   **Simplicity**: The recovery logic should reside in a small, standalone script (e.g., Python).
+*   **Dependencies**: Minimal external dependencies (e.g., `pyautogui` or similar).
 
 ## 6. Success Metrics (MVP)
-* MTTA (mean‑time‑to‑alert) on deviation < 60 s.
-* < 1 human intervention per 100 valid iterations over 8‑hour run.
-* ≥ 95 % Reflection JSON parsed without error.
+*   Successfully trigger and execute the recovery prompt insertion via GUI automation every time the "25 native tool calls" error is detected during testing.
+*   Observe `RECOVER_TYPED` logs corresponding to each recovery event.
 
 ## 7. Stakeholders
-* **Eddie** — Product/Tech owner.  
-* **AI Engineering** — owns Codex Planner & Tracker.  
-* **Dev‑Tools Team** — maintains Cursor integration.
+*   **Eddie** — Product/Tech owner.
 
 ## 8. Scope
-**Must‑have:** FR‑1 … FR‑4.  
-**Should‑have:** FR‑5, FR‑6.  
-**Future:** cloud sandbox mode, multi‑Planner ensemble.
+**Must‑have:** FR-S1, FR-S2, FR-S3, FR-S4, FR-S5.
+**Out of Scope (for MVP):** Reflexion, diff analysis, alignment checks, complex error handling, backoff/retry mechanisms, persistent state tracking beyond basic logging.
 
 ---
-## 9. High‑Level Architecture
+## 9. High‑Level Architecture (Simplified)
 ```
-┌─────────┐   send_message   ┌───────────┐
-│ Codex   │ ───────────────▶ │ Cursor    │
-│ Planner │ ◀─────────────── │ Executor  │
-└─────────┘    Outbox &      └───────────┘
-      ▲          GUI                    ▲
-      │       automation               │
-      │                                 │
-      │  checkpoints / diffs / alerts   │
-┌──────────────────────────────────────────────┐
-│           PlanExecu Tracker (MCP)            │
-│  • Checkpoint DB (SQLite)                   │
-│  • Diff Engine (Myers+dmp)                  │
-│  • Reflexion Worker (LLM)                   │
-│  • Alignment Rubric                         │
-└──────────────────────────────────────────────┘
+┌─────────┐        plan text        ┌───────────┐
+│ Codex   │ ──────────────────────▶ │  Cursor   │
+│ Planner │ ◀────────────────────── │ Executor  │
+└─────────┘                         └───────────┘
+            ▲        error watch
+            │          (stdout/stderr)
+        ┌───────────────────────────────┐
+        │ Tiny Watcher & Typer Script   │
+        │ • Monitor executor output     │
+        │ • Regex detect error          │
+        │ • pyautogui.typewrite(...)    │
+        │ • pyautogui.press('enter')    │
+        └───────────────────────────────┘
 ```
 
-### Data Flow
-1. Planner outputs **Plan Aₙ** → `send_message` tool inserts into *Outbox*.
-2. Agent S detects Outbox event, focuses Cursor, pastes Plan, presses ⏎.
-3. Executor runs → returns **PR‑Aₙ₊₁**, same path back.
-4. Tracker records checkpoints, computes diff, classifies probability_class.
-5. If `MEDIUM/LOW`, Reflexion Worker generates JSON and loop may pause.
+### Data Flow (Simplified)
+1.  Planner (e.g., via `codex` tool) generates a plan (Template Aₓ).
+2.  User/Script pastes Plan into Cursor Executor.
+3.  Executor runs, potentially hitting the 25-tool limit.
+4.  The separate "Watcher & Typer" script monitors Executor's output.
+5.  If the error string is detected, the script triggers GUI automation (FR-S2 to FR-S4).
+6.  The recovery prompt restarts the Executor's process for the next step based on the *last* plan provided by the Planner (referenced implicitly in the prompt).
+7.  The loop continues.
 
 ---
-## 10. Data Contracts
-### 10.1 Template Fields (Markdown)
-```markdown
-[📂 PROJECT]        …
-[🗺️ CURRENT GOAL]   …
-…
-[🪞 REFLECTION]
-  diagnosis: "…"
-  action_items:
-    - Step 1
-    - Step 2
-[✅ ALIGNMENT_CHECK] yes | no  // + rationale
+## 10. Key Components & Logic
+| Component               | Tech             | Notes                                                                 |
+| :---------------------- | :--------------- | :-------------------------------------------------------------------- |
+| **Error Detection**     | Regex/String Match | Monitor stdout/stderr of the process running the Cursor interaction. |
+| **GUI Automation**      | `pyautogui`      | Focuses Cursor window, types fixed prompt, presses Enter.             |
+| **Watcher/Typer Script**| Python           | Orchestrates detection and triggering of GUI automation.              |
+
+---
+## 11. Tech‑Stack Choices (MVP)
+| Layer            | Primary     | Notes                             |
+| :--------------- | :---------- | :-------------------------------- |
+| Language         | Python 3.x  | For the Watcher/Typer script.     |
+| GUI Automation   | `pyautogui` | Cross-platform basic GUI control. |
+| Core Loop Files  | Markdown    | `.cursorrules`, `*.mdc`, `*.md`   |
+
+---
+## 12. Deployment & Setup (via Cookiecutter)
+
+To simplify setup in any user repository, a Cookiecutter template will be provided.
+
+### Cookiecutter Template Structure
+```
+planexecu-cookiecutter/
+├── cookiecutter.json                  # Defines default project_slug
+├── {{cookiecutter.project_slug}}/     # Default: oppie.xyz/
+│   ├── .cursorrules                   # Core Cursor rules for the loop
+│   ├── drop-in_template_A.mdc         # Standard Planner -> Executor template
+│   ├── codex.md                       # Planner instructions/guidelines
+│   ├── scratchpad.md                  # Initial state/scratchpad file
+│   └── README_PLANEXECU.md            # Quick start guide
+└── hooks/
+    └── post_gen_project.py            # Prints setup instructions after generation
 ```
 
-### 10.2 MCP Tools
-| Tool | Params | Response |
-|------|--------|----------|
-| `record_checkpoint` | iteration, role, scratchpad | ckpt_id |
-| `diff_and_classify` | from_id, to_id | {patch, probability_class} |
-| `send_message` | target, message | ack |
-| `pause_episode` | reason | episode_id |
-| `resume_episode` | ckpt_id | ack |
+### Cookiecutter Usage
+1.  Install prerequisites: `pip install cookiecutter openai-codex`
+2.  Set `OPENAI_API_KEY` environment variable.
+3.  Install Cursor IDE.
+4.  Run: `cookiecutter gh:your-org/planexecu-cookiecutter` (replace `your-org` appropriately)
+5.  Accept the default `project_slug` ("oppie.xyz") or provide a custom name.
+6.  Copy/merge the generated files (`.cursorrules`, `*.md`, `*.mdc`) into the root of the target repository.
+7.  Follow instructions in `README_PLANEXECU.md` to start the loop.
 
-### 10.3 SQLite Schema (excerpt)
-```sql
-CREATE TABLE checkpoints(...);
-CREATE TABLE diffs(...);
-CREATE TABLE reflections(...);
-CREATE TABLE outbox(id INTEGER, target TEXT, payload TEXT);
-```
+*(The Watcher/Typer script itself is not part of the Cookiecutter template in this design but should be provided separately or documented for the user to implement/run).*
 
 ---
-## 11. Algorithms & Workers
-| Component | Tech | Notes |
-|-----------|------|-------|
-| **Diff Engine** | `difflib.unified_diff` (line) + `diff-match-patch` (char) | ratio→MEDIUM/LOW thresholds 0.6/0.4 |
-| **Reflexion Worker** | LLM (o3 / gpt‑4o) | Prompt returns JSON `{diagnosis, action_items}` |
-| **GUI Automation** | Agent S (pyautogui) **or** AppleScript (`osascript`) | fallback chosen by host‑capability |
-| **Rate‑limit Handler** | Regex detect "Exceeded 25 native tool calls" → `backoff = min(2ⁿ × 800 ms, 60 s)` | after 3 fails → pause |
+## 13. Security & Privacy
+*   GUI automation script should be run locally by the user.
+*   Ensure the script only interacts with the intended Cursor window if possible (e.g., via window title).
 
 ---
-## 12. Tech‑Stack Choices
-| Layer | Primary | Alt / Notes |
-|-------|---------|-------------|
-| Language | Python 3.11 |  |
-| Tracker API | FastAPI + MCP‑Python‑SDK | runs over stdio or HTTP |
-| Storage | SQLite 3.45 | future: DuckDB / Postgres |
-| Queue | RQ (Redis) | Celery if scaling out |
-| Diff libs | `difflib`, `diff-match-patch` | Rust port for perf |
-| LLM | OpenAI o3 | Claude 3 as backup |
-| GUI Bot | Agent S 0.2 | AppleScript fallback |
-| Observability | OpenTelemetry + Grafana | exporters in Tracker |
-
+## 14. Open Questions
+1.  Confirm the exact error string output by Cursor when the 25-tool limit is hit.
+2.  Determine the most reliable way for `pyautogui` to find and focus the Cursor input window across different OS/setups.
+3.  How will the Watcher/Typer script be distributed and run alongside Cursor/Codex? (Needs clear instructions in the main project README).
 ---
-## 13. Deployment & Ops
-* **Single‑host dev:** Docker Compose: `tracker`, `redis`, optional `worker`.
-* **Prod:** K8s; `tracker` HPA, workers as Job.
-* GUI bot runs on macOS workstation where Cursor is installed.
-* Secrets via 1Password Connect.
 
----
-## 14. Security & Privacy
-* GUI bot limited to `Cursor` window via window title regex.
-* Reflection JSON scrubbed of PII before log.
-* All MCP traffic over Unix socket or WireGuard.
-
----
-## 15. Open Questions
-1. Formal schema of Cursor Outbox key/value — need to confirm field names per latest release.
-2. Should back‑pressure propagate to Planner or Executor when pause occurs?
-3. Might `Agent S` GUI actions need computer‑vision fine‑tuning for theme changes (dark / light)?
-4. Decide on grounding LLM for alignment rubric — static rules vs policy LM.
-
----
-### Appendix A. Alignment Rubric (draft)
-* Data privacy respected?
-* Legal / license compliance?
-* Not causing irreversible workspace damage?
-* Resource cost reasonable (<10 min CPU per iteration)?
-
-> **Next**: validate Outbox insertion with a local Cursor build, plus run an end‑to‑end smoke test of Planner→GUI bot→Executor.
+> **Next**: Implement the simple Watcher/Typer script and test the recovery mechanism end-to-end. Create the Cookiecutter template repository.
 

@@ -129,6 +129,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/
@@ -176,3 +177,9 @@ cython_debug/
 # Project specific
 .spectstory/
 .DS_Store
+.specstory/**/*
+.backup/*
+.scratchpad_logs/*
+.env.example
+.backups/
+.backups/.cursorrules.cloudkitchen
