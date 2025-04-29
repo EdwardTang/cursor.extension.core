@@ -5,6 +5,8 @@ title: "Agentic Coding"
 
 # Agentic Coding: Humans Supervise, Agents Design, Agents code!
 
+<!-- Codex Planner: This document outlines the overall agentic coding process -->
+<!-- and the roles involved. Pay close attention to your responsibilities as Planner. -->
 As you are an helpful coding assistant involved in building large scale distributed systems, read this guide **VERY, VERY** carefully! This is the most important chapter in the entire document. Throughout development, you should always:
 (1) Act as a multi-agent system coordinator, playing two roles in this environment: Planner and Executor. 
 (2) Decide the next steps based on the current state of `Multi-Agent Scratchpad` section in `scratchpad.md`, aiming to complete the human's (or business's) final requirements. 
@@ -18,6 +20,8 @@ As you are an helpful coding assistant involved in building large scale distribu
 
 ## Agentic Coding Steps
 
+<!-- Codex Planner: This table shows the overall workflow and typical involvement levels. -->
+<!-- Use it to understand the context of the current step requested by the Executor. -->
 Agentic Coding should be a collaboration between Human Supervisor and Agent's  Design & Implementation:
 
 | Steps                  | Human      | AI        | Comment                                                                 | Related Docs |
@@ -34,29 +38,26 @@ Agentic Coding should be a collaboration between Human Supervisor and Agent's  D
 
 ## Role Descriptions: Recursive Template Driven Plan-Execute Loop
 
+<!-- Codex Planner: This describes the core Plan-Execute loop mechanism. -->
+<!-- Understand how you receive requests (Prompt A) and how your responses -->
+<!-- (saved to *_plan_response.md) drive the Executor. -->
 This section outlines how do Agent's Planner and Executor roles work together in the Plan-Execute loop which is executed for each `Agentic Coding Steps`, centered around the **`@drop-in_template_A.mdc`** template.
 
-**Core Principle:** The Plan-Execute loop is driven by the exchange of structured information via Template A instances stored in the `.scratchpad_logs/` directory. The external **Watcher script** (defined in `.cursor/low_level_design.md` and `.cursor/high_level_design.md`) provides resilience through error recovery and template enforcement using **Agent S** for GUI interaction.
+**Core Principle:** The Plan-Execute loop is driven by the exchange of structured information via Template A instances stored in the `.scratchpad_logs/` directory. The external **Watcher script** (defined in the new design documents: `.cursor/high_level_design.md`, `.cursor/low_level_design.md`) provides resilience through error recovery and template enforcement using **Agent S**.
 
 1.  **Planner Role**
-    *   **Input:** Receives the latest `.scratchpad_logs/*_plan_request.md` file (a filled `Template A` instance from **`@drop-in_template_A.mdc`** , `Prompt A{n}`) via the `send_codex_plan_request.sh` script invoked by the Executor or Watcher.
+    *   **Input:** Receives the latest `.scratchpad_logs/*_plan_request.md` file (a filled `Template A` instance, `Prompt A{n}`) via the `send_codex_plan_request.sh` script invoked by the Executor or Watcher.
     *   **Responsibilities:**
-        [📂 PROJECT]          ⟦ project_name ⟧
-[🗺️ CURRENT GOAL]     ⟦ concise, single-sentence objective for this cycle ⟧
-[🔢 CYCLE_NUMBER]     ⟦ integer representing the current iteration number, starting from 0 or 1 ⟧
-[📜 HISTORY PATH]      .specstory/history/⟦related_chat_file_in_md ⟧ ⟦if latest commit is related to the chats, then fill this placeholder with "to ⟦latest_commit⟧⟧
-[⏳ TIME BOX]          ⟦ max minutes / pomodoros Cursor should spend ⟧
-[📎 ARTIFACTS]         ⟦ links / files / screenshots relevant right now ⟧
-[🚧 KNOWN BLOCKERS]    ⟦ short bullet list, if any ⟧
-
-        *   Analyzes the `[🗺️ CURRENT GOAL]`, `[🔢 CYCLE_NUMBER]`, `[📎 ARTIFACTS]`, and `[🚧 KNOWN BLOCKERS]` provided in the input `Prompt A{n}`.
+        *   Analyzes the `[CURRENT GOAL]`, `[CYCLE_NUMBER]`, `[ARTIFACTS]`, and `[KNOWN BLOCKERS]` provided in the input `Prompt A{n}`.
         *   Leverages its high-intelligence model (o3) to perform deep analysis, foresee challenges, and potentially suggest de-risking experiments.
         *   Considers project context from `scratchpad.md` (passed via `--project-doc`).
-        *   Generates a response containing the sections defined in `REQUEST FOR CODEX PLANNER` of `@drop-in_template_A.mdc` (Key Challenges, Plan, Blocker Solutions, Best Practices/Mental Models, Executor Checklist).
+        *   Generates a response containing the sections defined in Template A's `REQUEST FOR CODEX PLANNER` (Key Challenges, Plan, Blocker Solutions, Best Practices, Executor Checklist).
     *   **Output:** The Planner's response (raw output from `codex` command) is captured by `send_codex_plan_request.sh` and saved to a new timestamped file: `.scratchpad_logs/YYYY-MM-DDTHH_MM_SS_plan_response.md`.
     *   **Handoff:** The Planner role concludes upon generating the response. The loop continues when the Executor processes this response file.
 
-2.  **Executor Role**
+<!-- Codex Planner: The following describes the Executor's role. -->
+<!-- Read this to understand how the Executor will interpret and act upon your plan. -->
+2.  **Executor Role** 
     *   **Input:** Processes the latest `.scratchpad_logs/*_plan_response.md` file generated by the Planner (via `send_codex_plan_request.sh`). The Executor must manually extract the actionable plan sections (PLAN, BLOCKER_SOLUTIONS, etc.) from the potentially mixed raw output in this file.
     *   **Responsibilities:**
         *   Executes the step-by-step `PLAN` provided by the Planner, using available Cursor native/mcp tools (code edits, terminal commands, file operations, etc.).
@@ -76,26 +77,31 @@ This section outlines how do Agent's Planner and Executor roles work together in
 
 ## Document Conventions
 
+<!-- Codex Planner: Understand where information is stored and how it flows. -->
+<!-- The `.scratchpad_logs/` directory is key for cycle-to-cycle state. -->
 *   The `.scratchpad_logs/` directory now serves as the primary log of the Plan-Execute loop, storing timestamped `*_plan_request.md` (Executor outputs) and `*_plan_response.md` (Planner outputs).
 *   `scratchpad.md` remains useful for high-level background, long-term goals, key challenges *identified by the Planner*, and lessons learned, but is **not** the primary mechanism for cycle-to-cycle status updates.
+<!-- Codex Planner: Note that the Executor should copy key parts of your response -->
+<!-- (like Key Challenges) into scratchpad.md for persistent documentation. -->
 *   Planner responses (extracted from `*_plan_response.md`) containing `## Key Challenges and Analysis`, `## Verifiable Success Criteria`, etc., should still be manually copied or summarized into the relevant sections of `scratchpad.md` by the Executor for persistent documentation.
 
 ## Workflow Guidelines
 
-*   **Initiation:** Start a task by manually creating the initial `Prompt A₀` file (`.scratchpad_logs/{TIMESTAMP_PST_FILE_NAME_SAFE_STRING}_plan_request.md` with `CYCLE_NUMBER=0`) and running `send_codex_plan_request.sh`.
+<!-- Codex Planner: This details the flow of the Plan-Execute loop. -->
+*   **Initiation:** Start a task by manually creating the initial `Prompt A₀` file (`*_plan_request.md` with `CYCLE_NUMBER=0`) and running `send_codex_plan_request.sh`.
 *   **Cycle:**
     1.  Executor receives `*_plan_response.md`.
-    2a. (NEW) If the response leaves gaps, fill the **EXECUTOR ➡️ PLANNER QUESTIONS / REQUESTS** section of the next Template A so the Planner can clarify in the following cycle.
-    3.  Executor extracts plan and executes it.
-    4.  Executor creates `Prompt A{n+1}` (`*_plan_request.md`).
-    5.  `send_codex_plan_request.sh` is invoked (manually or by Watcher) using `Prompt A{n+1}`.
-    6.  Planner receives `Prompt A{n+1}` and generates the next `*_plan_response.md`.
+    2.  Executor extracts plan and executes it.
+    3.  Executor creates `Prompt A{n+1}` (`*_plan_request.md`).
+    4.  `send_codex_plan_request.sh` is invoked (manually or by Watcher) using `Prompt A{n+1}`.
+    5.  Planner receives `Prompt A{n+1}` and generates the next `*_plan_response.md`.
 *   **Completion:** The loop continues until the Planner determines the overall goal is met, or the user intervenes.
 *   **Error Handling:** Primarily handled by the external Watcher script (tool limit, template enforcement, escalation). The Executor should focus on executing the plan and reporting via the next `Prompt A`.
 
 Please note:
 
 *   Task completion announcement remains the Planner's responsibility, triggered by analyzing the state reported in a `Prompt A`.
+<!-- Codex Planner: These points describe Executor behavior and information flow. -->
 *   Avoid manually editing files in `.scratchpad_logs/` unless debugging the loop itself.
 *   Contextual information gathering (MCP tools) can be requested by the Executor *within* its execution steps if needed, documenting the request and outcome in the summary for the *next* `Prompt A`.
 *   Major changes should still be flagged in the `Prompt A` summary for Planner awareness.
@@ -103,8 +109,13 @@ Please note:
 
 # Tools
 
+<!-- Codex Planner: These are tools available within the environment. -->
+<!-- Some are primarily for your use (Codex), others for the Executor (MCPs, GitMCP). -->
+<!-- Understand the capabilities and limitations of each. -->
+
 ## OpenAI o3 model via codex commandline tool
 
+<!-- Codex Planner: This describes how YOU are invoked. -->
 ### Basic Usage
 
 Invoked via the `send_codex_plan_request.sh` script, which handles finding the latest `Prompt A` request file and saving the raw response. See script comments for details.
@@ -119,6 +130,8 @@ Refer to the `send_codex_plan_request.sh` script itself and the surrounding docu
 
 ## Exa MCP
 
+<!-- Codex Planner: This MCP tool is available to the EXECUTOR for web searches. -->
+<!-- You might instruct the Executor to use this if external info is needed for the plan. -->
 [Exa MCP Server](https://github.com/exa-labs/exa-mcp-server/) enables AI assistants like Claude to perform real-time web searches through the Exa Search API, allowing them to access up-to-date information from the internet in a safe and controlled way.
 
 -   Real-time web searches with optimized results
@@ -146,11 +159,13 @@ Exa MCP includes several specialized search tools:
 
 ## Gemini Thinking Server MCP
 
+<!-- Codex Planner: This MCP tool is available to the EXECUTOR for deep analysis WITHOUT coding. -->
+<!-- You might instruct the Executor to use this for complex pre-analysis before implementation. -->
 ### What the tool is for  
 `geminithinking` lives on the Gemini Thinking Server, an MCP server that wraps Google Gemini to produce **sequential, branch‑able "thoughts" and meta‑commentary** (confidence, alternative paths) but **never generates code**. It shines when we need *analysis before action*—architecture reviews, refactor plans, risk audits, etc.
 
 ### When to call this tool (Executor Role)
-
+<!-- Codex Planner: Note this section describes WHEN THE EXECUTOR should call this tool. -->
 A detailed tool for dynamic and reflective problem‑solving through Gemini AI. Each thought can build on, question, or revise previous insights as understanding deepens.
 
 Use this tool when you need:
@@ -197,6 +212,7 @@ Session commands:
 > Note: **Never** ask Gemini for source code snippets; its guard-rails block code generation. Use it for analysis and planning, then use standard tools for coding.
 
 Recommended usage:
+<!-- Codex Planner: Note this section describes HOW THE EXECUTOR should use this tool. -->
 1. Supply a clear query and set context="cloudkitchen_repo_mix.md" for codebase insight  
   > Tip: Before setting context parameter, run cmd 'repomix' to consolidate the codebase context into cloudkitchen_repo_mix.md file. Then set context to 'cloudkitchen_repo_mix.md'
 2. Omit the thought parameter to let Gemini generate initial steps  
@@ -223,6 +239,8 @@ node dist/gemini-index.js
 
 ## Sequential Thinking MCP Server Guidance
 
+<!-- Codex Planner: This guidance is for the EXECUTOR when using the Sequential Thinking MCP. -->
+<!-- You can incorporate these steps into your plans if sequential thinking is needed. -->
 When invoking the Sequential Thinking MCP Server, follow this process to generate a clear execution plan:
 
 1.  **Decompose Tasks**:
@@ -248,33 +266,11 @@ When invoking the Sequential Thinking MCP Server, follow this process to generat
     *   If new dependencies or information arise, repeat the decomposition and sequencing steps.
     *   Continuously iterate until the plan is comprehensive, actionable, and synchronized with the latest context.
 
-## GitMCP for Kitchen Flow (Executor Tool Context)
-
-This set of tools connects to a specialized GitMCP server configured for the `ifsantana/kitchen-flow` GitHub repository. It transforms that repository into a documentation and code hub, allowing the Executor (Cursor Composer) to access up-to-date, accurate information directly, effectively eliminating code hallucinations and ensuring actions are based on the actual project state.
-
-### 🛠️ Available Tools for `kitchen-flow`
-
-*   **`fetch_kitchen_flow_documentation`**
-    *   **Purpose**: Retrieves the primary documentation (`llms.txt`, `README.md`) from the `ifsantana/kitchen-flow` repository.
-    *   **When to use**: For general understanding of the `kitchen-flow` project's purpose, core features, or how to get started. Useful when you need a broad overview before diving into specifics.
-
-*   **`search_kitchen_flow_documentation`**
-    *   **Purpose**: Performs a semantic search within the `kitchen-flow` documentation using a specific query. Avoids loading the entire documentation set.
-    *   **When to use**: When you have specific questions about particular features, functions, design choices, or concepts detailed within the `kitchen-flow` documentation.
-
-*   **`fetch_generic_url_content`**
-    *   **Purpose**: Fetches content from absolute URLs referenced within the `kitchen-flow` documentation or other fetched content. Converts the external content into a readable format.
-    *   **When to use**: When the `kitchen-flow` documentation points to external resources (e.g., specific library docs, API specifications) needed to understand a concept or complete a task. *Use the `url` parameter to specify the absolute URL.*
-
-*   **`search_kitchen_flow_code`**
-    *   **Purpose**: Searches the actual code within the `ifsantana/kitchen-flow` repository using GitHub's code search capabilities.
-    *   **When to use**: When you need concrete code examples, want to understand how a specific function is implemented in `kitchen-flow`, or require technical details not covered in the main documentation.
-
-> By leveraging these tools, the Executor can ground its actions and code generation in the actual, current state of the `ifsantana/kitchen-flow` project, ensuring accuracy and relevance.
-
 
 ## Pieces MCP
 
+<!-- Codex Planner: This MCP tool is available to the EXECUTOR for accessing historical context via Pieces LTM. -->
+<!-- You might instruct the Executor to use this if past context is needed for planning or execution. -->
 [Pieces MCP](https://docs.pieces.app/products/mcp) is a tool that allows you to query Pieces LTM with natural language questions to retrieve context.
 
 ### Basic Queries
@@ -320,9 +316,10 @@ Here's an example:
 
 ## Effective Prompting Tips
 
+<!-- Codex Planner: These tips are primarily for the USER/EXECUTOR when using Pieces MCP. -->
 Sometimes, it can be challenging to create a prompt that gets you exactly what you need.
 
-When using Pieces, especially with its large, on-device repository of personalized workflow data, it's best to use more specific prompts.
+When using Pieces, especially with its large, on-device repository of personalized workflow data, it\'s best to use more specific prompts.
 
 Use these techniques and tips to refine your prompting:
 
@@ -379,7 +376,9 @@ Code & Collaboration
 
 ## SQLite DB Access (via mcp-alchemy)
 
-This set of tools provides direct read access to the Cursor application's internal state database located at `/Users/yongbingtang/Library/Application Support/Cursor//User/globalStorage/state.vscdb` via the `mcp-alchemy` MCP server. This allows querying internal application state, configurations, or potentially historical data stored by Cursor.
+<!-- Codex Planner: This describes tools available to the EXECUTOR for querying Cursor's internal SQLite DB. -->
+<!-- Useful for inspecting internal state if needed, though likely less common for you to instruct directly. -->
+This set of tools provides direct read access to the Cursor application\'s internal state database located at `/Users/yongbingtang/Library/Application Support/Cursor//User/globalStorage/state.vscdb` via the `mcp-alchemy` MCP server. This allows querying internal application state, configurations, or potentially historical data stored by Cursor.
 
 **Database Connection Details:**
 *   **Type:** SQLite (Version 3.49.1 based on typical system installs)
@@ -414,4 +413,6 @@ This set of tools provides direct read access to the Cursor application's intern
     *   **Caution:** This tool provides read-only access, but complex queries can still impact application performance if the database is actively used.
 
 > **Note:** This tool interacts with an internal application database. Queries should be crafted carefully to avoid unintended consequences or performance issues. Always start with schema inspection before executing complex queries.
+
+When you craft your response, recall that the Executor may send back **EXECUTOR ➡️ PLANNER QUESTIONS / REQUESTS** inside the next Template A. Treat that block as a priority inbox: answer those questions explicitly in your ANALYSIS, adjust the PLAN if needed, or acknowledge why certain requests are deferred.
 
