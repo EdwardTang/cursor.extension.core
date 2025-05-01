@@ -1,0 +1,3 @@
+[submodule "codex-mcp"]
+	path = codex-mcp
+	url = git@github.com:EdwardTang/codex-mcp.git
