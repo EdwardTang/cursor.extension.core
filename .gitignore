@@ -183,3 +183,5 @@ cython_debug/
 .env.example
 .backups/
 .backups/.cursorrules.cloudkitchen
+# SpecStory explanation file
+.specstory/.what-is-this.md
