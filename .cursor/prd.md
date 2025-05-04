@@ -1,129 +1,195 @@
-# Oppie.xyz — Simple PRD for Plan‑Execu Tight Loop and Self-Recovery MVP (v0.2)
+# Oppie.xyz — Agentic Coding Assistant PRD (v0.5)
 
 ---
-## 1. Overview
-Build a minimal, semi-autonomous *Planner ⇄ Executor* loop within the Cursor IDE. The **sole focus** of this MVP is to automatically detect when the Cursor Executor hits its "25 native tool calls" limit and immediately trigger a recovery mechanism via GUI automation to continue the loop.
 
-## 2. Problem Statement
-The current manual Planner-Executor workflow is interrupted when Cursor's tool call limit is reached, requiring human intervention to restart the process. This MVP aims to create a simple, automated recovery mechanism.
+## 1  Overview
+Inspired by the resilience and autonomy of NASA's Mars rover Opportunity (Oppy), Oppie.xyz is envisioned as an **agentic coding assistant** native to the Cursor IDE. It acts as your "code rover," capable of navigating complex codebases and executing development tasks autonomously, even when you're away from the keyboard. Oppie operates on a core **Plan ⇄ Execute ⇄ Reflect** loop, enhanced with robust self-recovery and persistence mechanisms. This document outlines the requirements for building Oppie.xyz, evolving from the initial remote control/recovery MVP towards the full vision.
 
-## 3. Guiding Principles
-1.  **Simplicity First**: Implement only the core recovery logic.
-2.  **Minimal Intrusion**: Interact with Cursor externally via GUI automation; avoid internal modifications.
-3.  **Observability**: Log basic recovery actions (success/failure).
-
-## 4. Functional Requirements
-| ID      | Requirement                                                                         |
-| :------ | :---------------------------------------------------------------------------------- |
-| FR-S1   | Monitor Cursor Executor's stdout/stderr for the exact string `Exceeded 25 native tool calls`. |
-| FR-S2   | Upon detection of the error string, immediately trigger a GUI automation script.    |
-| FR-S3   | The GUI script must focus the Cursor Composer's new message input window.           |
-| FR-S4   | The GUI script must type the following fixed recovery prompt and press Enter:       |
-|         | `Cursor Executor, on top of @.cursorrules, @tech_stack.md and @scratchpad.md, strictly follow instructions from Codex Planner in the \`Template Aₓ — Plan-and-Execute Loop\` above to continue at where you stopped` |
-| FR-S5   | Log a simple `RECOVER_TRIGGERED` message when the error is detected and `RECOVER_TYPED` when the GUI action completes. |
-
-> **Note:** No backoff, retry logic, Reflexion, diffing, or alignment checks are included in this MVP.
-
-## 5. Non‑Functional Requirements
-*   **Reliability**: The GUI automation script should successfully type the prompt within ~5 seconds of error detection.
-*   **Simplicity**: The recovery logic should reside in a small, standalone script (e.g., Python).
-*   **Dependencies**: Minimal external dependencies (e.g., `pyautogui` or similar).
-
-## 6. Success Metrics (MVP)
-*   Successfully trigger and execute the recovery prompt insertion via GUI automation every time the "25 native tool calls" error is detected during testing.
-*   Observe `RECOVER_TYPED` logs corresponding to each recovery event.
-
-## 7. Stakeholders
-*   **Eddie** — Product/Tech owner.
-
-## 8. Scope
-**Must‑have:** FR-S1, FR-S2, FR-S3, FR-S4, FR-S5.
-**Out of Scope (for MVP):** Reflexion, diff analysis, alignment checks, complex error handling, backoff/retry mechanisms, persistent state tracking beyond basic logging.
+A Sidecar Daemon bridges a mobile PWA interface to the local Cursor instance, enabling remote monitoring and control, while also facilitating rapid self-recovery from limitations like the tool call cap.
 
 ---
-## 9. High‑Level Architecture (Simplified)
+
+## 2  Goals & Success Metrics
+| KPI | Target | Notes |
+| --- | --- | --- |
+| **Plan-Execute Cycle Time (P95)** | < 5 minutes | Time for one meaningful iteration on a typical task. |
+| **Autonomous Task Success Rate** | ≥ 40 % on SWE-Bench-Lite | Unattended execution, measured by CI pass / functional correctness. |
+| **Recovery Success Rate** | 100 % | Of detected "25 native tool calls" limit errors. |
+| **P95 Recovery Latency** | < 150 ms | From stderr detection to recovery prompt injection. |
+| **Mobile Push Latency (P95)** | < 500 ms | From desktop event (e.g., diff generated) to phone UI update. |
+| **CI Pass Rate on Generated PRs** | ≥ 92% | For tasks completed autonomously by Oppie. |
+| **User NPS (Pilot Group)** | ≥ +30 | After 2 weeks of using core loop + remote features. |
+
+---
+
+## 3  Problem Statement
+Developers need a reliable agent that can persistently work on coding tasks (e.g., fixing bugs, implementing features, running tests, refactoring) even through interruptions like IDE/OS restarts, network issues, or hitting platform limits (like Cursor's tool call cap). Current workflows require significant human supervision, especially for longer tasks. Oppie.xyz aims to provide this persistent autonomy, allowing developers to confidently delegate tasks and stay informed remotely via a mobile interface.
+
+---
+
+## 4  Guiding Principles
+1.  **Autonomy & Resilience:** Oppie should strive to complete tasks independently and recover gracefully from common interruptions.
+2.  **Plan-Execute-Reflect Cycle:** The core loop drives iterative progress and adaptation.
+3.  **Checkpoint-driven Persistence:** State is saved frequently, enabling crash recovery and rollback.
+4.  **Mobile-first Interaction (for Remote):** Critical status updates and controls are accessible via the PWA.
+5.  **Observability:** Clear logging and metrics for understanding agent behavior.
+6.  **Isolation & Safety:** Minimize direct modification of Cursor internals; use official APIs or GUI automation cautiously. Implement guardrails.
+7.  **Simplicity (for Components):** Keep individual components (Sidecar, PWA) focused and maintainable.
+
+---
+
+## 5  Functional Requirements
+| ID      | Module / Feature          | Requirement                                                                                                | Priority | Notes |
+| :------ | :------------------------ | :--------------------------------------------------------------------------------------------------------- | :------- | :---- |
+| **Core Loop** |                       |                                                                                                            |          |       |
+| FR-C1   | Planner                   | Analyze user requests & project context; break down tasks into executable steps with checkpoints.        | P0       | Uses LLM (e.g., Codex o3). |
+| FR-C2   | Executor                  | Execute planned steps using Cursor native tools & MCP tools; capture diffs/outputs accurately.           | P0       | Wraps Cursor's execution. |
+| FR-C3   | Reflector                 | Summarize execution results, identify deviations/blockers, format feedback for the Planner's next cycle. | P0       | Template-driven communication. |
+| FR-C4   | Landing Context           | On first run or context change, index the relevant codebase into a persistent Vector Store (Raft).        | P1       | For efficient RAG. |
+| **Persistence & Recovery** |        |                                                                                                            |          |       |
+| FR-PR1  | Checkpoint Protocol       | Save execution state (code diffs, tool outputs, logs) at each checkpoint defined by the Planner.          | P0       | Enables resume/rollback. |
+| FR-PR2  | Crash Recovery            | On restart (IDE/OS/Sidecar), automatically resume execution from the last successful checkpoint.           | P0       | "Crash-Safe". |
+| FR-PR3  | Tool Limit Detection      | Monitor Cursor Executor's stdout/stderr for the exact `Exceeded 25 native tool calls` string.            | P0       | Via Sidecar Daemon. |
+| FR-PR4  | Tool Limit Recovery       | Trigger GUI automation (via Sidecar) to inject the recovery prompt into Cursor Composer input.            | P0       | Target <150ms latency. |
+| FR-PR5  | Recovery Logging          | Log `RECOVER_TRIGGERED` and `RECOVER_ACTION_SENT` events with timestamps and plan context hash.            | P0       | For observability. |
+| **Remote Interface (PWA)** |        |                                                                                                            |          |       |
+| FR-RI1  | Live Progress Push        | Sidecar pushes key events (plan start, step execution, diff generated, errors, recovery) to PWA via Relay. | P0       | WSS connection. |
+| FR-RI2  | PWA Display               | PWA displays current status, recent logs, generated diffs, and active plan.                              | P0       | React + Vite PWA. |
+| FR-RI3  | PWA Controls              | PWA provides controls to Pause / Resume execution, Approve/Reject Diffs (if guardrail requires).           | P1       | Sends commands back via Relay. |
+| FR-RI4  | Remote Task Initiation    | Allow initiating predefined or simple tasks (e.g., "run tests", "fix this issue #123") from PWA.       | P2       | Future enhancement. |
+| **Safety & Monitoring** |            |                                                                                                            |          |       |
+| FR-SM1  | Basic Guard-rails         | Implement simple checks (e.g., excessive file changes, shell command risk) before execution.            | P1       | Can pause & request PWA approval. |
+| FR-SM2  | Autopause                 | Automatically pause execution if tests fail or significant deviations from plan occur.                     | P1       | Requires Reflector analysis. |
+| FR-SM3  | Health Endpoint           | Sidecar exposes `/healthz` HTTP endpoint reporting status (running, last checkpoint time, recovery status). | P1       | For external monitoring. |
+| FR-SM4  | Metrics Exposure          | Sidecar exposes Prometheus metrics (cycle times, errors, recovery counts, etc.).                           | P1       | `/metrics` endpoint. |
+| FR-SM5  | Secure Remote Actions     | Optional OTP confirmation in PWA for potentially high-risk actions (e.g., `git push`, complex shell commands). | P2       | Security enhancement. |
+
+---
+
+## 6  Non-Functional Requirements
+*   **Latency:** P95 Recovery < 150 ms; P95 Mobile Push < 500 ms; P95 Plan-Execute Cycle < 5 minutes.
+*   **Scalability:** Sidecar handles high volume stderr/stdout; Raft Vector Store scales with codebase size.
+*   **Security:** Sidecar runs locally; Relay uses JWT auth; Optional OTP for sensitive remote commands.
+*   **Reliability:** High success rate for recovery; persistent state survives restarts.
+*   **Extensibility:** Pluggable Guard-rails; potentially support different Planner/Reflector models.
+
+---
+
+## 7  High-Level Architecture
+```mermaid
+graph TD
+    subgraph "Local Workstation"
+        subgraph "Core Oppie Loop (Cursor Context)"
+            Planner[Planner
+(LLM via API)]
+            Executor[Executor
+(Cursor Tools)]
+            Reflector[Reflector
+(Template Engine)]
+            VDB[(Raft Vector Store
+Code Context)]
+            StateDB[(Checkpoint State
+File/DB)]
+
+            Planner -- Plan --> Executor
+            Executor -- Raw Results --> Reflector
+            Reflector -- Formatted Feedback --> Planner
+            Executor -- Reads/Writes --> StateDB
+            Planner -- Reads --> VDB
+            Executor -- Reads --> VDB
+            Reflector -- Reads --> StateDB
+        end
+
+        SD[Sidecar Daemon
+(Python)]
+        CE[Cursor Executor PTY]
+
+        CE -- stdout/stderr --> SD
+        SD -- Keystrokes (Recovery/Control) --> CE
+        SD -- Monitors/Controls --> Core Oppie Loop
+        SD -- Reads/Writes --> StateDB  // For remote control state
+    end
+
+    subgraph "Cloud"
+        Relay[Relay WSS]
+    end
+
+    subgraph "Phone"
+        PWA[Mobile PWA]
+    end
+
+    SD -- WSS --> Relay
+    Relay -- WSS --> PWA
+    PWA -- Commands via WSS --> Relay
+    Relay -- Commands via WSS --> SD
+    SD -. Metrics .-> Prometheus[(Prometheus)]
 ```
-┌─────────┐        plan text        ┌───────────┐
-│ Codex   │ ──────────────────────▶ │  Cursor   │
-│ Planner │ ◀────────────────────── │ Executor  │
-└─────────┘                         └───────────┘
-            ▲        error watch
-            │          (stdout/stderr)
-        ┌───────────────────────────────┐
-        │ Tiny Watcher & Typer Script   │
-        │ • Monitor executor output     │
-        │ • Regex detect error          │
-        │ • pyautogui.typewrite(...)    │
-        │ • pyautogui.press('enter')    │
-        └───────────────────────────────┘
-```
-
-### Data Flow (Simplified)
-1.  Planner (e.g., via `codex` tool) generates a plan (Template Aₓ).
-2.  User/Script pastes Plan into Cursor Executor.
-3.  Executor runs, potentially hitting the 25-tool limit.
-4.  The separate "Watcher & Typer" script monitors Executor's output.
-5.  If the error string is detected, the script triggers GUI automation (FR-S2 to FR-S4).
-6.  The recovery prompt restarts the Executor's process for the next step based on the *last* plan provided by the Planner (referenced implicitly in the prompt).
-7.  The loop continues.
+**Flow:**
+1.  User initiates task (locally or via PWA).
+2.  Planner gets context (Code from VDB, State from StateDB), generates plan.
+3.  Executor runs plan steps using Cursor tools, saving state/diffs to StateDB at checkpoints.
+4.  Reflector summarizes results, sends feedback to Planner. Loop continues.
+5.  Sidecar monitors PTY for errors (tool limit) and triggers recovery keystrokes.
+6.  Sidecar pushes status/diffs via Relay to PWA.
+7.  User monitors/controls via PWA (Pause/Resume/Approve).
 
 ---
-## 10. Key Components & Logic
-| Component               | Tech             | Notes                                                                 |
-| :---------------------- | :--------------- | :-------------------------------------------------------------------- |
-| **Error Detection**     | Regex/String Match | Monitor stdout/stderr of the process running the Cursor interaction. |
-| **GUI Automation**      | `pyautogui`      | Focuses Cursor window, types fixed prompt, presses Enter.             |
-| **Watcher/Typer Script**| Python           | Orchestrates detection and triggering of GUI automation.              |
+
+## 8  Tech Stack
+| Layer                 | Choice                | Notes                                                    |
+| :-------------------- | :-------------------- | :------------------------------------------------------- |
+| **Core Loop**         |                       |                                                          |
+| Planner               | **Codex API (o3)**    | High-intelligence model for planning & reflection.         |
+| Executor              | **Cursor Native Tools** | `edit_file`, `run_terminal_cmd`, etc.                    |
+| Reflector             | **Jinja2/Templates**  | Structured communication between Executor and Planner.     |
+| Vector Store          | **LanceDB / ChromaDB**| Local, persistent vector storage for code context (RAG). |
+| Checkpoint Store      | **Filesystem / SQLite**| Storing execution state, diffs, logs per checkpoint.     |
+| **Sidecar & Remote** |                       |                                                          |
+| Sidecar Language      | **Python 3.12**       | Packaged via PyInstaller/Ruff.                           |
+| GUI Automation        | **pyautogui**         | Cross-platform for recovery keystrokes (fallback).       |
+| Mobile UI             | **React + Vite PWA**  | For remote monitoring and control.                       |
+| Real-time Comm        | **WebSocket (Node `ws`)**| Sidecar ⇄ Relay ⇄ PWA communication.                   |
+| **Monitoring**        |                       |                                                          |
+| Metrics               | **prometheus-client** | Python library for exposing metrics.                     |
+| Logging               | **JSONL Files**       | Structured logging for audit and debugging.              |
 
 ---
-## 11. Tech‑Stack Choices (MVP)
-| Layer            | Primary     | Notes                             |
-| :--------------- | :---------- | :-------------------------------- |
-| Language         | Python 3.x  | For the Watcher/Typer script.     |
-| GUI Automation   | `pyautogui` | Cross-platform basic GUI control. |
-| Core Loop Files  | Markdown    | `.cursorrules`, `*.mdc`, `*.md`   |
+
+## 9  Milestones
+| ID | Scope                                       | ETA        | Status      |
+| ---| :------------------------------------------ | :--------- | :---------- |
+| M1 | Core Loop Foundation (Plan-Exec-Reflect)    | 2025-05-20 | To Do       |
+| M2 | Checkpoint Persistence & Basic Recovery     | 2025-05-30 | To Do       |
+| M3 | Sidecar Daemon + Tool Limit Recovery (FR-PR3/4/5) | 2025-06-10 | In Progress |
+| M4 | PWA Interface + Live Progress (FR-RI1/2)    | 2025-06-20 | To Do       |
+| M5 | Landing Context (Vector Store Integration)  | 2025-06-30 | To Do       |
+| M6 | Basic Guard-rails & PWA Controls (FR-SM1/RI3)| 2025-07-10 | To Do       |
+| M7 | Pilot with 3 repos; hit KPIs              | 2025-07-25 | To Do       |
 
 ---
-## 12. Deployment & Setup (via Cookiecutter)
 
-To simplify setup in any user repository, a Cookiecutter template will be provided.
-
-### Cookiecutter Template Structure
-```
-planexecu-cookiecutter/
-├── cookiecutter.json                  # Defines default project_slug
-├── {{cookiecutter.project_slug}}/     # Default: oppie.xyz/
-│   ├── .cursorrules                   # Core Cursor rules for the loop
-│   ├── drop-in_template_A.mdc         # Standard Planner -> Executor template
-│   ├── codex.md                       # Planner instructions/guidelines
-│   ├── scratchpad.md                  # Initial state/scratchpad file
-│   └── README_PLANEXECU.md            # Quick start guide
-└── hooks/
-    └── post_gen_project.py            # Prints setup instructions after generation
-```
-
-### Cookiecutter Usage
-1.  Install prerequisites: `pip install cookiecutter openai-codex`
-2.  Set `OPENAI_API_KEY` environment variable.
-3.  Install Cursor IDE.
-4.  Run: `cookiecutter gh:your-org/planexecu-cookiecutter` (replace `your-org` appropriately)
-5.  Accept the default `project_slug` ("oppie.xyz") or provide a custom name.
-6.  Copy/merge the generated files (`.cursorrules`, `*.md`, `*.mdc`) into the root of the target repository.
-7.  Follow instructions in `README_PLANEXECU.md` to start the loop.
-
-*(The Watcher/Typer script itself is not part of the Cookiecutter template in this design but should be provided separately or documented for the user to implement/run).*
+## 10  Risk Register
+| Risk                             | Impact | Likelihood | Mitigation                                                  |
+| :------------------------------- | :----- | :--------- | :---------------------------------------------------------- |
+| Planner Complexity/Hallucination | High   | Medium     | Iterative planning, strong Reflector feedback, guardrails.  |
+| State Management Bugs            | High   | Medium     | Robust checkpointing, atomic writes, validation.            |
+| Context Window Limits            | Medium | High       | Efficient RAG via Vector Store, context pruning strategies. |
+| Cursor UI/API Changes            | Medium | Medium     | Adapt Sidecar/Executor; prefer stable APIs over GUI.      |
+| GUI Automation Flakiness         | Medium | Medium     | Hidden command discovery; image fallback; robust selectors. |
+| Mobile Network Flakiness         | Medium | Medium     | Local buffering in Sidecar, resumable WSS connections.      |
+| OS Privacy Blocks `pyautogui`    | High   | Low        | Documented setup script to pre-grant permissions.         |
+| Security of Remote Control       | High   | Medium     | Local-only Sidecar option, Relay auth, optional OTP.        |
 
 ---
-## 13. Security & Privacy
-*   GUI automation script should be run locally by the user.
-*   Ensure the script only interacts with the intended Cursor window if possible (e.g., via window title).
+
+## 11  Open Questions
+1.  Optimal strategy for representing/saving execution state for checkpoints?
+2.  How to effectively manage context for the Planner LLM in very large codebases?
+3.  Best practices for designing Guard-rails without being overly restrictive?
+4.  Reliability of background WSS push notifications on iOS/Android PWA?
+5.  How to handle complex merge conflicts if Oppie modifies files concurrently with user?
 
 ---
-## 14. Open Questions
-1.  Confirm the exact error string output by Cursor when the 25-tool limit is hit.
-2.  Determine the most reliable way for `pyautogui` to find and focus the Cursor input window across different OS/setups.
-3.  How will the Watcher/Typer script be distributed and run alongside Cursor/Codex? (Needs clear instructions in the main project README).
----
 
-> **Next**: Implement the simple Watcher/Typer script and test the recovery mechanism end-to-end. Create the Cookiecutter template repository.
+> **Next**: Complete Sidecar Daemon + Tool Limit Recovery (M3), then build PWA Interface (M4).
 

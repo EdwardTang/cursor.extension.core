@@ -1,0 +1,118 @@
+{
+  "mcpServers": {
+    "mcp-deepwiki": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-deepwiki@latest"
+      ],
+      "env": {}
+    },
+    "git": {
+      "description": "",
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "/Users/yongbingtang/Projects/git-mcp-server/dist/index.js"
+      ],
+      "env": {}
+    },
+    "context7-mcp": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@upstash/context7-mcp",
+        "--key",
+        "1622f046-699c-48ee-98db-75a13a2fcb2b"
+      ],
+      "env": {}
+    },
+    "my_sqlite_db": {
+      "description": "",
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "mcp-alchemy==2025.04.16.110003",
+        "--refresh-package",
+        "mcp-alchemy",
+        "mcp-alchemy"
+      ],
+      "env": {
+        "DB_URL": "sqlite:////Users/yongbingtang/Library/Application Support/Cursor//User/globalStorage/state.vscdb"
+      }
+    },
+    "sequential-thinking": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "env": {}
+    },
+    "Pieces": {
+      "description": "",
+      "type": "stdio",
+      "command": null,
+      "args": [],
+      "env": {}
+    },
+    "new-mcp": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@bartekke8it56w2/new-mcp",
+        "--key",
+        "1622f046-699c-48ee-98db-75a13a2fcb2b"
+      ],
+      "env": {}
+    },
+    "mcp-server-serper": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@marcopesani/mcp-server-serper",
+        "--key",
+        "1622f046-699c-48ee-98db-75a13a2fcb2b"
+      ],
+      "env": {}
+    },
+    "duckduckgo": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "duckduckgo-mcp-server"
+      ],
+      "env": {}
+    },
+    "exa": {
+      "description": "",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "exa-mcp-server"
+      ],
+      "env": {
+        "EXA_API_KEY": "adf4ff70-4d4f-47a6-9f99-d43b83149db9"
+      }
+    }
+  }
+}
