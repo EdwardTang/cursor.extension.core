@@ -1,62 +1,76 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
-Below is a **drop -in “Template A”** that accomplishes three things at once:
+# Recursive template:
+Below is a **drop -in "Template A"** that accomplishes three things at once:
 
 1. Gives **Codex (Planner role)** exactly the context it needs to plan.  
 2. Defines a **canonical, machine -readable output format** so Cursor Composer (Executor role) can act unambiguously.  
-3. Embeds a **recursive hand -off section** that forces Cursor, once it finishes executing, to regenerate a fresh copy of Template A (→ “Prompt Aₙ₊₁”) so Codex can plan the next loop.
+3. Embeds a **recursive hand -off section** that forces Cursor, once it finishes executing, to regenerate a fresh copy of Template A (→ "Prompt Aₙ₊₁") so Codex can plan the next loop.
 
-The wording mirrors the style of the original Codex system -prompt—bullet -driven, imperative, minimal ceremony—while adding Cursor -specific affordances (e.g. image understanding) noted in its docs.citeturn0search2turn0search8
+The wording mirrors the style of the original Codex system -prompt—bullet -driven, imperative, minimal ceremony—while adding Cursor -specific affordances (e.g. image understanding) noted in its docs.
 
 > **How to use:**  
-> *The user* or *Cursor Executor* fills the placeholders and sends “Prompt A₀” to Codex.  
-> Codex replies with its plan + the **“Executor Follow -up Checklist”**.  
-> Cursor executes the plan, then **must** immediately post “Prompt A₁” (a fresh, filled copy of the same template) so Codex can iterate.
+> *The user* or *Cursor Executor* fills the placeholders and sends "Prompt A₀" to Codex.  
+> Codex replies with its plan + the **"Executor Follow -up Checklist"**.  
+> Cursor executes the plan, then **must** immediately post "Prompt A₁" (a fresh, filled copy of the same template) so Codex can iterate.
 
 ---
 
-## Template A 
+## Template A{n} — Plan-and-Execute Cycle
 
-```markdown
-### 🔄  Template A  — Plan-and-Execute Loop ( If there is any instructions in ⟦PLACEHOLDERS⟧, follow instructions; otherwise agent must fill the ⟦PLACEHOLDERS WITHOUT INSTRUCTION⟧ )
-
-[📂 PROJECT]          ⟦ project_name ⟧
-[🗺️ CURRENT GOAL]     ⟦ concise, single-sentence objective for this cycle ⟧
-[🔢 CYCLE_NUMBER]     ⟦ integer representing the current iteration number, starting from 0 or 1 ⟧
-[📜 HISTORY PATH]      .specstory/history/⟦related_chat_file_in_md ⟧ ⟦if latest commit is related to the chats, then fill this placeholder with "to ⟦latest_commit⟧⟧
-[⏳ TIME BOX]          ⟦ max minutes / pomodoros Cursor should spend ⟧
-[📎 ARTIFACTS]         ⟦ links / files / screenshots relevant right now ⟧
-[🚧 KNOWN BLOCKERS]    ⟦ short bullet list, if any ⟧
+> Note: 1. Executor's request should always include sections `📈 CYCLE {n} CONTEXT (filled by Executor, served to Planner)`,  `📞 EXECUTOR ➡️ PLANNER QUESTIONS / REQUESTS (optional, filled by Executor)` and `📝 PLANNER RESPONSE FOR CYCLE {n} (filled by Planner, shipped to Executor)`. And the `📝 PLANNER RESPONSE FOR CYCLE {n} (filled by Planner, shipped to Executor) should leave it as is, Planner will take care of it.
+> 2. Planner's response should always includes sections `📈 CYCLE {n} CONTEXT (filled by Executor, served to Planner)` and `📝 PLANNER RESPONSE FOR CYCLE {n} (filled by Planner, shipped to Executor)`. Especially, we  need make sure the `6.  **EXECUTOR FOLLOW-UP CHECKLIST (to be executed at Cycle {n} conclusion):**` is always included in Planner's response
 
 ---
+#### 📈 CYCLE {n} CONTEXT (filled by Executor, served to Planner)
 
-#### 📝 REQUEST FOR CODEX PLANNER (you *must* output all sections)
+[🔢 CYCLE_NUMBER]     ⟦ integer, 0-based loop counter ⟧
+[📂 PROJECT]          ⟦ project name ⟧
+[🗺️ PREVIOUS GOAL (Cycle {n-1})] ⟦ previous goal set by Planner ⟧
+[✅ PREVIOUS OUTCOME (Cycle {n-1})] ⟦ Executor's summary of last cycle's achievements and fresh insights (for Checklist a) ⟧
+[🚧 CURRENT BLOCKERS] ⟦ Executor's updated hit-list of current blockers (for Checklist b) ⟧
+[🎯 NEXT GOAL (Cycle {n})] ⟦ Executor's shiny new mission for this cycle (for Checklist c) ⟧
+[📜 HISTORY PATH]      ⟦ related history file path ⟧
+[⏳ TIME BOX]          ⟦ estimated time box for Cycle {n} ⟧
+[📎 RELEVANT ARTIFACTS] ⟦ relevant artifacts/links for Cycle {n} ⟧
+[🗒️ SCRATCHPAD DELTA] ⟦ brief note of what changed in `scratchpad.md` since last cycle (none if first cycle) ⟧
+[🔍 AVAILABLE MCP TOOLS] ⟦ the value of this metadata should be `.cursor/available_mcp_tools.md`⟧
+---
+#### 📞 EXECUTOR ➡️ PLANNER QUESTIONS / REQUESTS (optional, filled by Executor)
+Use this section to poke the Planner if you need *more*—clarifications, extra detail, sanity-checks, whatever keeps the loop humming. If you have nothing to say, drop in a friendly none.
+[❓ ANALYSIS & JUSTIFICATION] ⟦ feedback / questions for the Planner about their analysis ⟧
+[❓ PLAN]                     ⟦ doubts, edge-cases, or nit-picks about the PLAN steps ⟧
+[❓ BLOCKER SOLUTIONS]        ⟦ additional blockers spotted or requests for deeper fixes ⟧
+[❓ BEST PRACTICES /MENTAL MODELS]  ⟦ ask for more brain-hacks, reading links, or ref guidance ⟧
+[❓ MCP TOOLS] ⟦ ask for what MCP tools that would help execute the PLAN or feedback on previous recommended MCP tools ⟧
+---
+#### 📝 PLANNER RESPONSE FOR CYCLE {n} (filled by Planner, shipped to Executor)
 
-1.  **PLAN** -- step-by-step actions Cursor Executor should take next (≤ 7 steps, each atomic).
-2.  **BLOCKER_SOLUTIONS** -- proposed resolutions for each blocker above (or “none”).
-3.  **BEST_PRACTICES / MENTAL_MODELS** -- transferable engineering insights to apply.
-4.  **EXECUTOR FOLLOW-UP CHECKLIST** -- ***MANDATORY*** instructions Cursor Executor must do *after* executing the plan:
-
-   ```text
-   a. Summarise work done & new insights (≤ 120 words).
-   b. Refresh BLOCKERS list (empty if solved).
-   c. Update CURRENT_GOAL for the next cycle.
-   d. Fill a brand-new Template A instance (e.g., creating `.scratchpad/YYYY-MM-DDTHH_MM_SS_plan_request.md`), copying relevant fields from the input template and **incrementing CYCLE_NUMBER by 1**. Call this **Prompt A{n+1}**.
-   e. Output Prompt A{n+1} as the final message of your response, ready for the next planning cycle.
-   ```
+1.  **ANALYSIS & JUSTIFICATION:** ⟦ Planner's razor-sharp analysis and rationale based on CONTEXT ⟧
+2.  **PLAN (STRICTLY ≤ 8 ATOMIC ACTIONS; ACTION 1 MUST BE `Review scratchpad.md`):** ⟦ concise steps the Executor must perform, beginning with a scratchpad review ⟧
+3.  **BLOCKER SOLUTIONS:** ⟦ creative proposals to bust through CURRENT BLOCKERS ⟧
+4.  **BEST PRACTICES / MENTAL MODELS:** ⟦ relevant engineering best practices or mental models (cue the brain hacks) ⟧
+5.  **RECOMMENDED MCP TOOL CALLS (via pluggedin_proxy):** ⟦  recommend specific tools listed in `.cursor/available_mcp_tools.md` that would help execute the PLAN, such as `web_search` from exa-mcp-server or `fetch_documentation` from mcp-deepwiki. Each recommendation should include the tool name, purpose, and how it specifically helps with the current cycle's goals. ⟧
+6.  **EXECUTOR FOLLOW-UP CHECKLIST (to be executed at Cycle {n} conclusion):**
+    
+```text
+    a. Summarize the work done and fresh insights in the `PREVIOUS OUTCOME` field of Prompt A{n+1}.
+    b. Refresh the `CURRENT BLOCKERS` list in Prompt A{n+1}.
+    c. Set the `NEXT GOAL` for Cycle {n+1} in Prompt A{n+1}.
+    d. Fully populate the `CYCLE {n+1} CONTEXT` section of the new Template A → bake Prompt A{n+1}.
+    e. Update `scratchpad.md` with key challenges, lessons learned, success criteria, progress, and delta notes.
+    f. Verify `scratchpad.md` accurately reflects the latest state and commit changes if necessary.
+    g. Blast Prompt A{n+1} out as the final message of your response.
 ```
-
-> **Important:** Cursor Executor treats everything above the horizontal rule as metadata and everything under **REQUEST FOR CODEX PLANNER** as Codex's authoritative instructions for the next sprint.
-
 ---
 
 ## Why this works
 
-* **Planner / Executor separation** is an established best -practice in multi -agent research—LangChain's “Plan -and -Execute” agent follows the same two -phase loop.
-* A **self -refilling template** realises the closed loop described in recent Autogen and CLEA agent papers.
+* **Planner / Executor separation** is an established best -practice in multi -agent research—LangChain's "Plan -and -Execute" agent follows the same two -phase loop.
+* A **self-refilling template** realises the closed loop described in recent Autogen and CLEA agent papers.
 * The fields map to Cursor's autonomous capabilities (code edits, tests, image QA). 
 * Bullet -style imperatives mimic the original Codex prompt to keep cognitive load low.
 * Explicit time -box, artifact list, and blocker handling are drawn from plan -and -execute tutorials that improve agent reliability.
@@ -66,5 +80,24 @@ The wording mirrors the style of the original Codex system -prompt—bullet -dri
 
 ## Drop -in continuation (unchanged coding guard -rails)
 
-Append the *exact* block you supplied (starting “If completing the user's task requires writing or modifying files: …”) directly below Template A inside your `.cursorrules`.  
+Append the *exact* block you supplied (starting "If completing the user's task requires writing or modifying files: …") directly below Template A inside your .cursorrules.  
 That preserves Codex's proven safety / style guidance while layering the new planner -executor handshake on top.
+
+---
+
+```mermaid
+sequenceDiagram
+    participant Human
+    participant Executor
+    participant Planner
+    Human->>Executor: Fill Template A₀ CONTEXT + (optional) QUESTIONS
+    Executor->>Planner: Prompt A₀ (full template)
+    Planner-->>Executor: PLAN + CHECKLIST (Template A₀ response)
+    loop Cycle n
+        Executor->>Executor: Execute PLAN steps
+        Executor-->>Planner: Prompt Aₙ (new CONTEXT + QUESTIONS)
+        Planner-->>Executor: PLANₙ + CHECKLIST
+    end
+```
+
+---
