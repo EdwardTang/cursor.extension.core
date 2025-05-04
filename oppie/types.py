@@ -31,6 +31,14 @@ class Msg:
     ts: Optional[int] = None
     
 @dataclass
+class CounterUpdateMsg:
+    """表示计数器更新消息，用于节点间同步调用计数"""
+    node_id: str
+    delta: int = 1  # 默认增加1
+    logical_ts: int = field(default_factory=lambda: int(time.time() * 1000))
+    counter_type: str = "tool_call"  # 计数器类型
+    
+@dataclass
 class ExecResult:
     """表示执行结果"""
     status: str  # success, error, recovery_needed
