@@ -66,6 +66,12 @@ class TestRecoveryMechanism(unittest.TestCase):
             agent_s=agent_s_mock
         )
         
+        # 添加事件处理器
+        triggered_mock = MagicMock()
+        completed_mock = MagicMock()
+        watcher.add_event_handler("recovery_triggered", triggered_mock)
+        watcher.add_event_handler("recovery_completed", completed_mock)
+        
         # 启动监控
         watcher.start_monitoring()
         
@@ -79,6 +85,10 @@ class TestRecoveryMechanism(unittest.TestCase):
         agent_s_mock.focus_cursor.assert_called_once()
         agent_s_mock.type_and_enter.assert_called_once()
         self.assertEqual(watcher.recovery_count, 1)
+        
+        # 验证事件触发
+        triggered_mock.assert_called_once()
+        completed_mock.assert_called_once()
     
     def test_recovery_from_missing_template(self):
         """测试从缺少Template A恢复"""
@@ -108,8 +118,43 @@ class TestRecoveryMechanism(unittest.TestCase):
         # 停止监控
         watcher.stop_monitoring()
         
-        # 验证行为（模式可能需要改进；目前匹配不够精确）
-        self.skipTest("模式匹配需要改进以精确识别缺少Template A的情况")
+        # 验证行为
+        agent_s_mock.focus_cursor.assert_called_once()
+        agent_s_mock.type_and_enter.assert_called_once()
+        self.assertEqual(watcher.recovery_count, 1)
+    
+    def test_no_recovery_for_valid_template(self):
+        """测试有效的Template A不会触发恢复"""
+        # 将测试输出写入临时文件，包含有效的Template A
+        with open(self.stdout_path, 'w') as f:
+            f.write("Log line 1\n")
+            f.write("🪄 assistant_bubble_end Template A — Plan-and-Execute Cycle\n")  # 包含Template A
+            f.write("Log line 3\n")
+        
+        # 模拟AgentS和Watcher的行为
+        agent_s_mock = MagicMock()
+        agent_s_mock.focus_cursor.return_value = True
+        agent_s_mock.type_and_enter.return_value = True
+        
+        # 使用模拟的AgentS创建Watcher
+        watcher = DevLoopWatcher(
+            stdout_file=self.stdout_path,
+            agent_s=agent_s_mock
+        )
+        
+        # 启动监控
+        watcher.start_monitoring()
+        
+        # 等待足够的时间让监控器处理文件
+        time.sleep(0.5)
+        
+        # 停止监控
+        watcher.stop_monitoring()
+        
+        # 验证行为 - 不应该触发恢复
+        agent_s_mock.focus_cursor.assert_not_called()
+        agent_s_mock.type_and_enter.assert_not_called()
+        self.assertEqual(watcher.recovery_count, 0)
     
     def test_end_to_end_recovery_workflow(self):
         """测试端到端恢复工作流"""
@@ -123,23 +168,43 @@ class TestRecoveryMechanism(unittest.TestCase):
         # 模拟工具调用限制
         self.core.tool_call_count = 25
         
+        # 事件处理器
+        recovery_completed = MagicMock()
+        
+        # 使用模拟的AgentS
+        agent_s_mock = MagicMock()
+        agent_s_mock.focus_cursor.return_value = True
+        agent_s_mock.type_and_enter.return_value = True
+        
+        # 创建Watcher
+        watcher = DevLoopWatcher(
+            stdout_file=self.stdout_path,
+            agent_s=agent_s_mock
+        )
+        
+        # 添加事件处理器
+        watcher.add_event_handler("recovery_completed", recovery_completed)
+        
         # 将模拟的工具调用限制错误输出到文件
         with open(self.stdout_path, 'w') as f:
             f.write("Exceeded 25 native tool calls\n")
         
         # 启动监控
-        self.watcher.start_monitoring()
+        watcher.start_monitoring()
         
         # 等待足够的时间让监控器处理文件
         time.sleep(0.5)
         
         # 停止监控
-        self.watcher.stop_monitoring()
+        watcher.stop_monitoring()
         
         # 验证恢复机制激活
-        self.assertTrue(self.watcher.recovery_count > 0)
+        agent_s_mock.focus_cursor.assert_called_once()
+        agent_s_mock.type_and_enter.assert_called_once()
+        self.assertEqual(watcher.recovery_count, 1)
         
-        self.skipTest("需要进一步实现完整的端到端恢复工作流测试")
+        # 验证事件触发
+        recovery_completed.assert_called_once()
     
     def test_recovery_performance(self):
         """测试恢复性能，确保在目标时间内完成"""
@@ -158,23 +223,17 @@ class TestRecoveryMechanism(unittest.TestCase):
             agent_s=agent_s_mock
         )
         
-        # 测量恢复时间
+        # 直接调用trigger_recovery方法进行测量
         start_time = time.time()
-        
-        # 启动监控
-        watcher.start_monitoring()
-        
-        # 等待足够的时间让监控器处理文件
-        time.sleep(0.5)
-        
-        # 停止监控
-        watcher.stop_monitoring()
-        
+        result = watcher.trigger_recovery()
         end_time = time.time()
-        recovery_time = (end_time - start_time) * 1000  # 转换为毫秒
         
-        # 验证恢复时间（这里无法实际测量，因为包含了sleep时间）
-        self.skipTest("实际性能测试需要更精确的计时机制")
+        # 计算恢复时间（毫秒）
+        recovery_time = (end_time - start_time) * 1000
+        
+        # 验证结果和性能
+        self.assertTrue(result)
+        self.assertTrue(recovery_time < 250, f"恢复时间为{recovery_time}毫秒，超过了250毫秒的目标")
     
     def test_false_positive_rate(self):
         """测试假阳性率，确保不会错误触发恢复"""
@@ -207,6 +266,49 @@ class TestRecoveryMechanism(unittest.TestCase):
         # 验证不会错误触发恢复
         agent_s_mock.focus_cursor.assert_not_called()
         agent_s_mock.type_and_enter.assert_not_called()
+    
+    def test_event_handlers(self):
+        """测试事件处理器机制"""
+        # 模拟AgentS
+        agent_s_mock = MagicMock()
+        agent_s_mock.focus_cursor.return_value = True
+        agent_s_mock.type_and_enter.return_value = True
+        
+        # 创建Watcher
+        watcher = DevLoopWatcher(
+            stdout_file=self.stdout_path,
+            agent_s=agent_s_mock
+        )
+        
+        # 创建模拟的事件处理器
+        trigger_handler = MagicMock()
+        complete_handler = MagicMock()
+        
+        # 添加事件处理器
+        watcher.add_event_handler("recovery_triggered", trigger_handler)
+        watcher.add_event_handler("recovery_completed", complete_handler)
+        
+        # 触发恢复
+        watcher.trigger_recovery()
+        
+        # 验证事件处理器被调用
+        trigger_handler.assert_called_once()
+        complete_handler.assert_called_once()
+        
+        # 移除事件处理器
+        watcher.remove_event_handler("recovery_triggered", trigger_handler)
+        watcher.remove_event_handler("recovery_completed", complete_handler)
+        
+        # 重置模拟
+        trigger_handler.reset_mock()
+        complete_handler.reset_mock()
+        
+        # 再次触发恢复
+        watcher.trigger_recovery()
+        
+        # 验证事件处理器未被调用
+        trigger_handler.assert_not_called()
+        complete_handler.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main() 

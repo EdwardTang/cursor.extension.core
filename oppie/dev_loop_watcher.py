@@ -90,12 +90,22 @@ class DevLoopWatcher:
         
         # 定义错误模式
         self.error_patterns = [
-            # 工具调用限制错误
+            # 工具调用限制错误 - 匹配"Exceeded 25 native tool calls"
             re.compile(r"Exceeded\s+25\s+native\s+tool\s+calls"),
             
-            # 缺少Template A错误
-            re.compile(r"🪄\s+assistant_bubble_end(?!.*Template\s+A)(?!.*Plan-and-Execute\s+Cycle)")
+            # 缺少Template A错误 - 改进的正则表达式
+            # 匹配以下模式：
+            # 1. assistant_bubble_end标记
+            # 2. 之后没有出现"Template A"或"Plan-and-Execute Cycle"
+            # 3. 且在同一行或附近几行内没有找到## CYCLE或## Template
+            re.compile(r"🪄\s+assistant_bubble_end(?![^<>]{0,200}(Template\s+A|Plan-and-Execute\s+Cycle|##\s*CYCLE|##\s*Template))")
         ]
+        
+        # 添加事件处理器字典
+        self.event_handlers = {
+            "recovery_triggered": [],     # 恢复触发事件处理器
+            "recovery_completed": []      # 恢复完成事件处理器
+        }
     
     def start_monitoring(self) -> None:
         """开始监控"""
@@ -116,6 +126,43 @@ class DevLoopWatcher:
         if self._task:
             self._task.join(timeout=1.0)
             self._task = None
+    
+    def add_event_handler(self, event_type: str, handler: Callable) -> None:
+        """
+        添加事件处理器
+        
+        Args:
+            event_type: 事件类型
+            handler: 处理器函数
+        """
+        if event_type in self.event_handlers:
+            self.event_handlers[event_type].append(handler)
+    
+    def remove_event_handler(self, event_type: str, handler: Callable) -> None:
+        """
+        移除事件处理器
+        
+        Args:
+            event_type: 事件类型
+            handler: 处理器函数
+        """
+        if event_type in self.event_handlers and handler in self.event_handlers[event_type]:
+            self.event_handlers[event_type].remove(handler)
+    
+    def _emit_event(self, event_type: str, **kwargs) -> None:
+        """
+        发送事件到所有注册的处理器
+        
+        Args:
+            event_type: 事件类型
+            **kwargs: 事件参数
+        """
+        if event_type in self.event_handlers:
+            for handler in self.event_handlers[event_type]:
+                try:
+                    handler(**kwargs)
+                except Exception as e:
+                    print(f"事件处理器错误: {e}")
     
     def _monitor_loop(self) -> None:
         """监控循环，检查文件变化"""
@@ -186,6 +233,9 @@ class DevLoopWatcher:
             self.last_recovery_time = current_time
             self.recovery_count += 1
             
+            # 发送恢复触发事件
+            self._emit_event("recovery_triggered", count=self.recovery_count, timestamp=current_time)
+            
             # 使用Agent S聚焦Cursor
             if not self.agent_s.focus_cursor():
                 print("无法聚焦Cursor编辑器")
@@ -203,6 +253,10 @@ class DevLoopWatcher:
                 return False
             
             print(f"成功触发恢复机制，这是第{self.recovery_count}次恢复")
+            
+            # 发送恢复完成事件
+            self._emit_event("recovery_completed", count=self.recovery_count, timestamp=time.time())
+            
             return True
             
         except Exception as e:

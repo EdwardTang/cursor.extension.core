@@ -6,7 +6,7 @@ import json
 import time
 import uuid
 from typing import Dict, Any, Optional, List, Set
-from oppie.types import Msg
+from oppie.types import Msg, CounterUpdateMsg
 
 class MeshAdapter:
     """网格适配器，负责节点间通信和状态同步"""
@@ -32,6 +32,7 @@ class MeshAdapter:
         self.last_heartbeat_received = {}  # 节点ID -> 上次接收心跳的时间戳
         self._task = None  # 后台任务
         self._stopping = False  # 停止标志
+        self.tool_proxy = None  # 将由调用者设置（ToolProxy实例）
     
     async def start(self) -> None:
         """启动网格适配器"""
@@ -56,6 +57,13 @@ class MeshAdapter:
                     # 如果消息不是来自自己且有核心组件，则处理消息
                     if source_id != self.node_id and self.core:
                         await self._handle_message(msg)
+                
+                elif event["type"] == "counter_update" and self.connected:
+                    update_msg = event["data"]
+                    source_id = event["source_id"]
+                    
+                    if source_id != self.node_id:
+                        await self._handle_counter_update(update_msg)
                 
                 elif event["type"] == "heartbeat" and self.connected:
                     source_id = event["source_id"]
@@ -83,6 +91,17 @@ class MeshAdapter:
         if self.core:
             # 异步调用核心组件的handle_message方法
             asyncio.create_task(self._call_core_handle_message(msg))
+    
+    async def _handle_counter_update(self, update_msg: CounterUpdateMsg) -> None:
+        """
+        处理计数器更新消息
+        
+        Args:
+            update_msg: 计数器更新消息
+        """
+        if self.tool_proxy:
+            # 应用计数器更新
+            self.tool_proxy.apply_counter_update(update_msg)
     
     async def _call_core_handle_message(self, msg: Msg) -> None:
         """
@@ -121,6 +140,25 @@ class MeshAdapter:
             "type": "message",
             "source_id": self.node_id,
             "data": msg
+        }
+        
+        # 放入事件总线
+        await self.event_bus.put(event)
+    
+    async def broadcast_counter_update(self, update_msg: CounterUpdateMsg) -> None:
+        """
+        广播计数器更新消息到所有节点
+        
+        Args:
+            update_msg: 计数器更新消息
+        """
+        if not self.connected:
+            return  # 断开连接时不广播
+        
+        event = {
+            "type": "counter_update",
+            "source_id": self.node_id,
+            "data": update_msg
         }
         
         # 放入事件总线
