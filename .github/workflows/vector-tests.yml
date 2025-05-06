@@ -1,0 +1,30 @@
+name: Vector Store Tests
+
+on:
+  push:
+    paths:
+      - 'oppie_vector/**'
+      - 'tests/vector/**'
+      - '.github/workflows/vector-tests.yml'
+  pull_request:
+    paths:
+      - 'oppie_vector/**'
+      - 'tests/vector/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # Install test deps
+          pip install pytest
+      - name: Run Vector Store tests
+        run: pytest tests/vector 
