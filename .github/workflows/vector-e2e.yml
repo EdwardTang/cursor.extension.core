@@ -1,0 +1,69 @@
+name: Vector Store E2E
+
+on:
+  pull_request:
+    paths:
+      - 'oppie_vector/**'
+      - 'vscode-extension/oppie-xyz/**'
+      - '.github/workflows/vector-e2e.yml'
+
+jobs:
+  stage1:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python deps (no faiss)
+        run: |
+          pip install -r requirements.txt --constraint <(pip freeze)
+      - name: Run pytest (skip faiss)
+        run: |
+          pytest -m "not faiss"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node deps
+        run: |
+          cd vscode-extension/oppie-xyz
+          npm ci --ignore-scripts
+      - name: Compile and test extension (headless)
+        run: |
+          cd vscode-extension/oppie-xyz
+          npm run test:ci
+
+  stage2:
+    runs-on: ubuntu-latest
+    needs: stage1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python with faiss-cpu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install FAISS deps
+        run: |
+          sudo apt-get update && sudo apt-get install -y libopenblas-dev
+          pip install faiss-cpu
+          pip install -r requirements.txt --constraint <(pip freeze)
+      - name: Run full pytest suite
+        run: pytest
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node deps
+        run: |
+          cd vscode-extension/oppie-xyz
+          npm ci --ignore-scripts
+      - name: Run extension tests via xvfb
+        run: |
+          sudo apt-get install -y xvfb
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            bash -c "cd vscode-extension/oppie-xyz && npm run test:ci" 
