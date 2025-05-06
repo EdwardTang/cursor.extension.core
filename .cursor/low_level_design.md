@@ -5,17 +5,16 @@
 
 ## 1 Implementation Scope
 
-This document breaks the **M1** milestone into concrete, testable units of work for the **Remote Cursor Control Mesh**.  It supersedes previous *Dev-Loop* notes and merges them with the new remote PWA surface.
+本文档重构了**M1**里程碑，采用**OpenHands ACI**作为核心Agent框架，并与**Remote Cursor Control Mesh**集成。它取代了之前的*Dev-Loop*方案，重点用OpenHands的现有能力取代自研组件。
 
 | Component            | Status in M1 | Language | LOC target | Notes |
 |----------------------|--------------|----------|-----------|-------|
 | Cursor Extension Core| ✅ ship       | TS       | < 500     | IPC + Webview timeline |
-| PocketFlow Orchestrator | ✅ ship    | TS       | < 150     | 3-step loop, adapters plug-in |
-| ToolBroker / Plug-in Loader | ✅ ship | TS | < 200 | Dynamic `import()` of `*.plugin.js` |
+| OpenHands Adapter    | ✅ ship       | TS/Py    | < 150     | 转换Template A和OpenHands事件 |
+| OpenHands Config     | ✅ ship       | TOML/Py  | < 100     | OpenHands配置和扩展点 |
 | Sidecar Daemon       | ✅ ship       | Py 3.12  | < 400     | WSS bridge + keystroke fallback + push buffer |
-| Dev-Loop Watcher     | ✅ ship       | Py 3.12  | < 250     | Regex + Agent S recovery |
-| Agent S Helpers      | ✅ ship       | Py 3.12  | < 80      | focus + type utilities |
-| Vector Store Client  | ✅ ship       | TS       | < 120     | Wraps rqlite HTTP |
+| Dev-Loop Watcher     | ✅ ship       | Py 3.12  | < 250     | 监控输出和触发恢复 |
+| Trajectory Client    | ✅ ship       | TS       | < 120     | 封装trajectory-visualizer API |
 
 ---
 
@@ -29,16 +28,17 @@ export type Msg =
   | { type: 'progress'; pct: number; log: string }
   | { type: 'diff'; patch: string }
   | { type: 'approve'; ok: boolean }
-  | { type: 'recover'; ok: boolean; ts: number };  // NEW — push recovery status to PWA
+  | { type: 'recover'; ok: boolean; ts: number }
+  | { type: 'openhands_event'; payload: TimelineEntry }; // NEW - OpenHands事件
 
 export const IPC_PATH = process.platform === 'win32'
   ? r"\\.\\pipe\\oppie-ipc"
   : '/tmp/oppie-ipc.sock';
 ```
 
-Push events of type `recover` allow the PWA to update its timeline and measure **P95 push latency** KPI.
+`openhands_event`类型允许OpenHands的事件直接映射到UI timeline，支持实时可视化和监控。
 
-*Transport*: UNIX domain socket (Windows named pipe) created by the **Extension Core** on activation.  The **Sidecar** reconnects with exponential backoff.
+*Transport*: UNIX domain socket (Windows named pipe) created by the **Extension Core** on activation. The **Sidecar** reconnects with exponential backoff.
 
 ---
 
@@ -50,13 +50,16 @@ Push events of type `recover` allow the PWA to update its timeline and measure *
 import { IPC_PATH, Msg } from './shared';
 import * as vscode from 'vscode';
 import net from 'net';
+import { OpenHandsAdapter } from './openhands-adapter';
 
 export function activate(ctx: vscode.ExtensionContext) {
+  const openHands = new OpenHandsAdapter();
+  
   const server = net.createServer(socket => {
     socket.on('data', async (raw) => {
       const msg: Msg = JSON.parse(raw.toString());
       if (msg.type === 'runPlan') {
-        await executePlan(msg.plan);
+        await openHands.executePlan(msg.plan);
       } else if (msg.type === 'chat') {
         await invokeChat(msg.prompt);
       }
@@ -67,93 +70,141 @@ export function activate(ctx: vscode.ExtensionContext) {
 }
 ```
 
-### 3.2 `executePlan` & PocketFlow mini-loop
+### 3.2 OpenHands Adapter & Agent integration
 
 ```ts
-async function executePlan(plan: Step[]) {
-  const pf = new PocketFlow({ adapters: loadReasoningAdapters() });
-  for await (const evt of pf.run(plan)) {
-    webviewPost(evt);            // stream to PWA
-    sidecarNotify(evt);          // optional fallback
+class OpenHandsAdapter {
+  constructor() {
+    // 启动OpenHands实例或连接到现有服务
+    this.initOpenHands();
+  }
+
+  async executePlan(plan: Step[]) {
+    // 转换plan为OpenHands任务格式
+    const task = this.convertToOpenHandsTask(plan);
+    
+    // 启动OpenHands Agent并监听事件
+    this.openHandsClient.on('event', (event) => {
+      webviewPost(event);
+      sidecarNotify(event);
+    });
+    
+    // 执行并等待结果
+    await this.openHandsClient.execute(task);
+  }
+
+  private initOpenHands() {
+    // 初始化OpenHands客户端
+    // 可通过设置OPENHANDS_ENABLED环境变量控制是否启用
+    const enabled = process.env.OPENHANDS_ENABLED === 'true';
+    if (enabled) {
+      // 连接到OpenHands服务
+    } else {
+      // 使用模拟实现
+    }
+  }
+
+  private convertToOpenHandsTask(plan: Step[]): OpenHandsTask {
+    // 将Oppie步骤转换为OpenHands任务
+    return {
+      type: 'code',
+      instructions: plan.map(p => p.description).join('\n'),
+      context: { template: 'A' }
+    };
   }
 }
 ```
 
 ### 3.3 Chat Invocation Strategy
 
-1. Attempt dynamic command discovery (regex `^cursor\..*(chat|composer)`)
-2. If found, `executeCommand` + clipboard paste + `type('\n')`.
-3. Else, send `{ type: 'chat', prompt }` back to Sidecar which uses keystroke automation.
+保持不变，支持多种策略：
+1. 尝试动态命令发现（regex `^cursor\..*(chat|composer)`）
+2. 如果找到，通过`executeCommand` + 剪贴板粘贴 + `type('\n')`执行
+3. 否则，发送`{ type: 'chat', prompt }`回给Sidecar使用键盘自动化
 
 ---
 
-## 4 ToolBroker & Plug-in Loader
+## 4 OpenHands Integration
 
-```ts
-import glob from 'fast-glob';
+### 4.1 OpenHands配置
 
-export async function loadPlugins(): Promise<Plugin[]> {
-  const files = await glob('plugins/**/*.plugin.js', { cwd: vscode.workspace.rootPath });
-  return Promise.all(files.map(f => import(f)));
-}
+OpenHands通过TOML文件配置，我们将创建一个Oppie特定的配置：
+
+```toml
+# oppie_openhands_config.toml
+[core]
+mode = "headless"  # 无UI模式，事件流通过API暴露
+agent = "code_act_agent"  # 使用OpenHands的CodeActAgent
+
+[llm]
+provider = "openai"
+model = "gpt-4"  # 与Codex o3兼容
+
+[runtime]
+type = "local"  # 本地执行环境
+isolation = "minimal"  # 最小隔离以允许VS Code操作
+
+[security]
+allow_file_operations = true  # 允许文件操作
+allow_command_execution = true  # 允许命令执行
+
+[budget]
+max_tool_calls = 24  # 低于Cursor 25工具调用限制
+action_delay_ms = 100  # 操作间延迟以防止频繁调用
+
+[vector_store]
+type = "faiss"  # 使用FAISS作为向量存储
+path = "./.openhands/vectors"  # 向量存储位置
 ```
 
-Each plug-in exposes:
+### 4.2 OpenHands与Template A桥接
 
-```ts
-export interface Plugin {
-  name: string;
-  version: string;
-  apply(step: Step, ctx: ExecCtx): Promise<ExecResult>;
-}
-```
-
-The **ToolBroker** iterates over steps and delegates to the first plug-in whose `apply` returns non-null.
-
----
-
-## 5 Sidecar Daemon (Python 3.12)
+Template A需要转换为OpenHands能理解的任务格式：
 
 ```python
-import asyncio, json, websockets, socket, os, sys, pathlib
-from ipc_shared import IPC_PATH
-WS_URL = os.environ.get('OPPIE_WSS') or 'wss://relay.oppie.xyz/session?jwt=…'
+# openhands_adapter.py
+from openhands.core import Agent, Task, Event
+import re
 
-async def main():
-    # connect IPC first
-    reader, writer = await asyncio.open_unix_connection(IPC_PATH) if os.name != 'nt' else await asyncio.open_connection(path=IPC_PATH)
-    async with websockets.connect(WS_URL) as ws:
-        while True:
-            data = await ws.recv()
-            msg = json.loads(data)
-            await handle(msg, writer)
+TEMPLATE_A_REGEX = re.compile(r"## Template A(\d+)")
 
-def handle(msg, writer):
-    writer.write(json.dumps(msg).encode())
+class TemplateAAdapter:
+    def __init__(self, agent: Agent):
+        self.agent = agent
+    
+    def convert_template_to_task(self, template_text: str) -> Task:
+        """将Template A文本转换为OpenHands任务"""
+        # 解析循环号
+        cycle_match = TEMPLATE_A_REGEX.search(template_text)
+        cycle = int(cycle_match.group(1)) if cycle_match else 0
+        
+        # 创建OpenHands任务
+        return Task(
+            type="code",
+            instructions=template_text,
+            metadata={
+                "cycle": cycle,
+                "type": "template_a",
+                "executor": "cursor"
+            }
+        )
+    
+    def convert_events_to_template(self, events: list[Event]) -> str:
+        """将OpenHands事件转换回Template A格式"""
+        # 构建下一个Template A
+        # ...实现省略...
+        return template_text
 ```
-
-### 5.1 Fallback keystroke path
-
-```python
-import pyautogui
-
-def send_chat(prompt: str):
-    pyautogui.hotkey('command', 'l')  # focus Composer
-    pyautogui.write(prompt)
-    pyautogui.press('enter')
-```
-
-This path is invoked when the Extension replies with `{ type: 'chat', prompt }`.
 
 ---
 
-## 6 Dev-Loop Watcher (Python 3.12)
+## 5 Dev-Loop Watcher (Python 3.12)
 
-Most logic is unchanged from the legacy *Dev-Loop* but now listens to the real `cursor-executor` process spawned by the Extension.
+保留当前监控Cursor输出的核心功能，但删除Agent S依赖，直接通过OpenHands函数调用或简化的文本输入实现恢复：
 
 ```python
 import re, subprocess, json, time
-from agent_s_helpers import focus_cursor, type_and_enter
+from openhands.utils import input_text
 
 ERROR_RE  = re.compile(r"Exceeded 25 native tool calls")
 TEMPLATE_RE = re.compile(r"### 🔄  Template A")
@@ -176,12 +227,11 @@ def handle_line(line, pid):
 
 def recover(reason, pid):
     log("RECOVER_START", reason, pid)
-    focus_cursor()
-    type_and_enter(RECOVERY_PROMPT)
+    input_text(RECOVERY_PROMPT)  # 使用OpenHands的输入工具
     log("RECOVER_DONE", reason, pid)
 ```
 
-### 6.1 Recovery Prompt Constant
+### 5.1 Recovery Prompt Constant
 
 ```python
 RECOVERY_PROMPT = (
@@ -193,40 +243,61 @@ RECOVERY_PROMPT = (
 
 ---
 
-## 7 Testing & QA Matrix
+## 6 Testing & QA Matrix
 
 | Level        | Tool / Framework   | Assertions |
 |--------------|--------------------|------------|
-| **Unit**     | `pytest`, `jest`   | IPC parse, regex match, plugin selection |
+| **Unit**     | `pytest`, `jest`   | IPC parse, regex match, OpenHands Adapter |
 | **Contract** | `pact` (TS ↔ Py)   | Extension ↔ Sidecar message schema |
-| **Integration** | `pexpect`, `vitest` | Fake executor → watcher recovers |
+| **Integration** | `openhands-test-client`, `vitest` | OpenHands task执行, 事件流产生和消费 |
 | **End-to-end** | Manual, screencast | Trigger from phone, watch loop for 1 h |
 
 ---
 
-## 8 Packaging & Distribution
+## 7 Packaging & Distribution
 
 | Target            | Command |
 |-------------------|---------|
 | **Watcher Bin**   | `pyinstaller watcher.spec` |
 | **Extension VSIX**| `pnpm package` |
 | **Sidecar Zip**   | `pyinstaller sidecar.spec` |
+| **OpenHands**     | `poetry export -f requirements.txt --output openhands-requirements.txt` |
 
-`start_devloop.sh` spawns Planner (`codex -m o3 -a full-auto`) in a new iTerm tab **and** launches `watcher.bin` in the current shell.
-
----
-
-## 9 Security & Privacy Notes
-
-* **Accessibility** Agent S binaries are signed; first launch will request Assistive permission (macOS) — documented in README.
-* **Sandbox** Sidecar and plugins run in separate processes, no shared memory.
-* **Data** Only plan / diff metadata is sent to the relay; source code never leaves the workstation.
+`start_devloop.sh`脚本将启动OpenHands服务、Codex Planner和Watcher。新增`--openhands`标志控制是否启用OpenHands功能。
 
 ---
 
-## 10 Performance Tuning
+## 8 Security & Privacy Notes
 
-*Steady-state CPU* < 2 %, *RAM* < 120 MB per process.  Use non-blocking IO everywhere.  Profile with `py-spy` and `vscode-profiling`.
+* **OpenHands沙箱** 配置为"minimal"隔离级别以允许文件系统和命令行访问，遵循最小权限原则。
+* **Accessibility** 使用OpenHands Runtime的function calling替代大部分GUI自动化；仅在fallback时使用pyautogui。
+* **Sandbox** OpenHands在单独进程中运行，与VS Code/Cursor隔离。
+* **Data** 只有计划和差异元数据发送到中继服务；源代码永远不会离开工作站。
+
+---
+
+## 9 Performance Tuning
+
+*内存优化*：
+- 避免OpenHands和Cursor在内存中竞争 - 在OpenHands配置中设置`max_memory_mb`
+- 使用事件流缓冲以防止在网络延迟时OOM
+
+*CPU使用*：
+- 稳态CPU < 2%, 内存 < 120 MB每进程
+- Profile工具：OpenHands内置profiler + `py-spy` + `vscode-profiling`
+
+---
+
+## 10 Incremental Migration 
+
+为确保平稳过渡，我们采用渐进式迁移策略：
+
+1. **阶段1**：引入OpenHands适配器，同时保留现有组件；使用feature flag控制
+2. **阶段2**：并行运行两个系统，比较成功率和性能
+3. **阶段3**：当OpenHands稳定后，逐步弃用自研组件
+4. **阶段4**：清理冗余代码，完成迁移
+
+每个阶段都有明确的回退策略，确保关键功能不受影响。
 
 ---
 

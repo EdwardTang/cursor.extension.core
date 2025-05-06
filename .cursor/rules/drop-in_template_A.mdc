@@ -38,6 +38,7 @@ The wording mirrors the style of the original Codex system -prompt—bullet -dri
 [📎 RELEVANT ARTIFACTS] ⟦ relevant artifacts/links for Cycle {n} ⟧
 [🗒️ SCRATCHPAD DELTA] ⟦ brief note of what changed in `scratchpad.md` since last cycle (none if first cycle) ⟧
 [🔍 AVAILABLE MCP TOOLS] ⟦ the value of this metadata should be `.cursor/available_mcp_tools.md`⟧
+[🔖 ADR LINK] ⟦ optional, path to related Architecture Decision Record (if applicable for this cycle) ⟧
 ---
 #### 📞 EXECUTOR ➡️ PLANNER QUESTIONS / REQUESTS (optional, filled by Executor)
 Use this section to poke the Planner if you need *more*—clarifications, extra detail, sanity-checks, whatever keeps the loop humming. If you have nothing to say, drop in a friendly none.
@@ -63,7 +64,8 @@ Use this section to poke the Planner if you need *more*—clarifications, extra 
     d. Fully populate the `CYCLE {n+1} CONTEXT` section of the new Template A → bake Prompt A{n+1}.
     e. Update `scratchpad.md` with key challenges, lessons learned, success criteria, progress, and delta notes.
     f. Verify `scratchpad.md` accurately reflects the latest state and commit changes if necessary.
-    g. Blast Prompt A{n+1} out as the final message of your response.
+    g. If cycle involved architecture decisions, consider creating an ADR using `tools/adr_init.sh "决策标题"`.
+    h. Blast Prompt A{n+1} out as the final message of your response.
 ```
 ---
 

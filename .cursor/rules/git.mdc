@@ -1,0 +1,120 @@
+---
+description: **Explaining task rules**  It looks like the user wants an explanation of when the rules should be applied within the workflow. These rules are helpful for tasks like feature development, bug fixes, and should be executed before actions like branching, committing, and creating pull requests. To follow best practices, they should be integrated with the Planner/Executor loop. I’ll make sure to respond with a clear description that lays out the tasks and triggers without modifying official documentation.   Thought for 8 seconds   ### What kinds of tasks does **`git_best_practices_cursor.mdc`** support?  | Task Type                   | Typical Examples                                                              | Why these rules help                                                                                                                                                                  | | --------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | | **Feature development**     | Implementing a new API endpoint, adding a UI component, integrating a library | Enforces clean feature branches (`feat/<scope>-<cycle>-<desc>`), Conventional Commit messages, and small PRs so the Planner & Executor loop can reason about each change set clearly. | | **Bug fixes / hot-patches** | Resolving a failed test, security patch, production hot-fix                   | Defines `fix/<scope>-<issue>` branches and CI gates that must pass before merging; prevents checkpoint / plan files from leaking into hot-patch commits.                              | | **Release preparation**     | Stabilising `release/1.2.0`, tagging `v1.2.0`, building Docker images         | Coordinates protected `release/*` branches, SemVer tagging via `semantic-release`, and ensures CI builds & publishes artifacts.                                                       | | **Chores & refactors**      | Dependency bumps, code formatting, deleting dead code                         | Keeps non-feature noise off `main`, guarantees lock-file updates and large-file handling follow standard hooks.                                                                       | | **Documentation updates**   | Updating `scratchpad.md`, architecture diagrams, ADRs                         | Allows docs to live in the repo while preventing transient agent artifacts from being committed.                                                                                      |  ---  ### When should an **Agent** apply these rules?  | Development Moment                                | Agent Action (Planner / Executor)                                                                                                      | Relevant Rule                        | | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | | **Starting a new cycle** (Planner sets NEXT GOAL) | Choose or create a branch name that matches the template (`feat/`, `fix/`, …) tied to the current `CYCLE_NUMBER`.                      | *Branch Strategy*                    | | **Before the first commit**                       | Fill the commit template, optionally add `[C<n>]`, and verify pre-commit hooks succeed locally.                                        | *Commit Message* & *Pre-commit*      | | **After local work is done**                      | Run `git pull --rebase origin main` to ensure a linear history; snapshot a local Cursor Checkpoint (but **never** add it to staging).  | *Pull Request Flow §1 & Checkpoints* | | **Opening a Pull Request**                        | Populate the PR template fields (`Last CYCLE`, `NEXT GOAL`) so Human reviewers and Planner can trace the change to Template A context. | *Pull Request Flow §5*               | | **CI Execution**                                  | Let GitHub Actions enforce lint/test/build, block if any `.scratchpad_logs/**` or `*_plan_request.md` files appear in the diff.        | *Automation & Quality Gates*         | | **Merging to `main`**                             | Ensure the PR passed review, CI, and meets the ≤ 400-line rule; then delete the feature branch.                                        | *Pull Request Flow*                  | | **Tagging / releasing**                           | Push merges into `release/*`; `semantic-release` tags `vX.Y.Z` automatically.                                                          | *SemVer Tag & Release Job*           | | **Hot-fix on production**                         | Branch from the latest tag (`release/*`), patch, test, tag a patch version, merge back into `main`.                                    | *Branch Strategy & CI Guardrails*    |  ---  **In short:** *The Executor should consult the rules **every time it creates a branch, stages a commit, opens a PR, or triggers CI**. The Planner should reference them when formulating plans that involve Git operations (e.g., “Action 2: create `feat/payments-C7-card-vault` branch”). Adhering at those checkpoints guarantees that the multi-agent loop stays traceable, builds stay green, and no transient agent artifacts pollute the history.*
+globs: 
+alwaysApply: false
+---
+# Git Best Practices (Cursor Multi-Agent Workflow)
+
+---
+
+## 1 -- Goals & Scope
+
+* **Goal:** Operational Git standards for the **Planner ⇄ Executor** loop defined in `.cursorrules` and `@drop-in_template_A.mdc`.
+* **Scope:** Repositories using **trunk-based development** or **light GitFlow** with Cursor + MCP Server + Agent S.
+
+## 2 -- Baseline Conventions
+
+| Item                  | Rule                                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default branch        | `main` (always deployable)                                                                                                                                                                                              |
+| Protected branches    | `main`, `release/*` (PR review required)                                                                                                                                                                                |
+| SemVer tag            | `v<major>.<minor>.<patch>` via CI + `semantic-release`                                                                                                                                                                  |
+| Checkpoints           | Local **Cursor Checkpoints** only, **never committed**                                                                                                                                                                  |
+| Line endings          | `LF` via `.editorconfig`                                                                                                                                                                                                |
+| Encoding              | `UTF-8`                                                                                                                                                                                                                 |
+| **Agentic artifacts** | **Never commit:** `.cursor/checkpoints/**`, `.scratchpad_logs/**`, `*_plan_request.md`, `*_plan_response.md`<br>**Allowed:** `scratchpad.md`, `.cursor/high_level_design.md`, `.cursor/low_level_design.md`, other docs |
+
+> **.gitignore excerpt**
+>
+> ```gitignore
+> # Cursor multi-agent scratch & checkpoints
+> .cursor/checkpoints/
+> .scratchpad_logs/
+> *_plan_request.md
+> *_plan_response.md
+> ```
+
+## 3 -- Branch Strategy 
+
+* **Feature:** `feat/<scope>-<cycle>-<desc>` — `<cycle>` = latest `CYCLE_NUMBER` (e.g. `feat/auth-C3-login-ui`).
+* **Fix:** `fix/<scope>-<issue|desc>`
+* **Release:** `release/<version>`
+* **Chore / Docs:** `chore/<task>`, `docs/<topic>`
+
+## 4 -- Commit Message
+
+Follow **Conventional Commits**; add optional loop marker:
+
+```
+<type>(<scope>): [C<n>] <subject>
+
+<body>
+
+<footer>
+```
+
+Example: `feat(auth): [C4] add JWT refresh logic`
+
+## 5 -- Pull Request Flow (Multi-Agent)
+
+1. **Rebase first:** `git pull --rebase origin main`
+2. **Small PRs:** ≤ 400 changed lines; otherwise split.
+3. **CI gates:** `lint`, `unit test`, `build` must pass.
+4. **Review ownership:** `CODEOWNERS`; else @mention relevant devs.
+5. **PR template**
+
+```markdown
+### Changes
+- What & Why
+
+### Planner Loop
+- Last CYCLE: C<n>
+- NEXT GOAL: ...
+
+### Test Steps
+1. …
+
+### Impact / Rollback
+- …
+```
+
+6. **Guardrail:** CI fails if any plan/scratch artifacts are committed.
+
+## 6 -- Cursor Multi-Agent Tips
+
+| Feature          | Best Practice                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| **Template A**   | Executor must create `Prompt A{n+1}` in `.scratchpad_logs/`, filling `CYCLE_NUMBER`, `NEXT GOAL`, etc. |
+| **Inline Diff**  | `⌘⇧—` for on-the-fly diff                                                                              |
+| **AI Code Lens** | Mark WIP with `// TODO:` to trigger code suggestions                                                   |
+| **Checkpoint**   | Snapshot locally; never push `.cursor/checkpoints/**`                                                  |
+| **Issue Linker** | Reference issues (`#123`) in Template A `RELEVANT_ARTIFACTS` for auto-linking                          |
+
+## 7 -- Automation & Quality Gates
+
+* **Pre-commit:** `lint-staged`, `yamllint`, `custom-templ-lint` (checks Template A isn’t committed)
+* **Commitizen:** enforce Conventional Commits + `[C<n>]`
+* **GitHub Actions:**
+
+  * `test-matrix` — multi-language tests
+  * `build-docker` — build image + push GHCR
+  * `release` — `semantic-release` on `release/*`
+  * `guard-agent-artifacts` — fail build on committed plan/scratch files
+
+## 8 -- Pitfalls & Fixes
+
+| Scenario              | Mistake                                | Fix                                 |
+| --------------------- | -------------------------------------- | ----------------------------------- |
+| Template A committed  | Executor rushed                        | Pre-commit + CI guard               |
+| Massive lockfile diff | Unrelated `package-lock.json` included | Upgrade deps on separate branch     |
+| Messy history         | Excess `merge --no-ff`                 | `git rebase -i` to squash           |
+| Large binaries        | Video/PSD in repo                      | Use **Git LFS** or external storage |
+
+## 9 -- References
+
+* Conventional Commits
+* Trunk-Based Development
+* Semantic Release
+* GitHub Actions
+* LangChain Plan-and-Execute
+* Autogen Agents Paper
