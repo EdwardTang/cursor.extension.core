@@ -1,3 +1,6 @@
 [submodule "codex-mcp"]
 	path = codex-mcp
 	url = git@github.com:EdwardTang/codex-mcp.git
+[submodule "cursor.extension.core"]
+	path = cursor.extension.core
+	url = git@github.com:EdwardTang/cursor.extension.core.git

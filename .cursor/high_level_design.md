@@ -5,7 +5,7 @@
 
 ## 1 Executive Summary & MVP Goal
 
-The **M1** milestone merges the proven *Dev-Loop* self-recovery mechanism (Watcher ✕ Agent S) with a new **Remote Cursor Control Mesh** that runs inside a VS Code/Cursor extension and can be remote-controlled from the **SoraSpark** mobile Progressive Web App (PWA).
+**M1**现在基于**OpenHands ACI**重构，Oppie的VS Code扩展主要作为适配器，在Cursor与OpenHands之间传递事件。移动PWA消费相同的轨迹流。
 
 * **Primary job-to-be-done:**  Kick off a coding or research task from the phone (e.g. *Fix failing tests*) and watch it finish without human intervention, even if Cursor hits the 25 tool-call limit.
 * **Success criteria:**  After the user taps the button on the phone, the plan is generated, executed, diffs streamed live, and the task completes or reports error.  Cursor limitations must never stall the loop for > 3 s; overall unattended success-rate ≥ 40 % and P95 push latency < 500 ms.
@@ -33,26 +33,23 @@ digraph G
   subgraph "Host Workstation"
     Sidecar["🖥️ Sidecar Daemon\n(Python 3.12)"]
     Ext["🧩 Cursor Extension Core\n(TypeScript)"]
-    Mesh["🔗 Plug-in Mesh & ToolBroker"]
+    OpenHands["🔄 OpenHands ACI Stack"]
     Planner["🤖 Codex Planner (o3)"]
     Executor["🛠️ Cursor Executor"]
     Watcher["👁️‍🗨️ Dev-Loop Watcher\n(Python)"]
-    AgentS["🪄 Agent S\nGUI Automation"]
-    Vector["🗃️ Vector Store\n(rqlite)"]
   end
   PWA -> Relay -> Sidecar
   Sidecar -> Ext [label="IPC"]
-  Ext -> Mesh
-  Mesh -> Planner [label="plan →"]
+  Ext -> OpenHands
+  OpenHands -> Planner [label="plan →"]
   Planner -> Executor [label="Template A"]
   Executor -> Watcher [label="stdout / stderr"]
-  Watcher -> AgentS [label="recovery-prompt"]
-  AgentS -> Executor
-  Mesh -> Vector [label="embeddings"]
+  Watcher -> Executor [label="recovery-prompt"]
+  OpenHands -> Ext [label="events"]
   Ext -> PWA [label="progress / diff"]
 ```
 
-*The **Watcher ✕ Agent S** pair acts as an immune system that guarantees forward progress, while the **Remote Control Mesh** turns single-purpose Planner/Executor interactions into a general automation fabric.*
+*The **Dev-Loop Watcher** acts as an immune system that guarantees forward progress, while the **OpenHands ACI Stack** provides a comprehensive agent system with planning, execution, and reflection capabilities.*
 
 ---
 
@@ -61,22 +58,21 @@ digraph G
 | # | Component                         | Responsibility                                                                    | Key Tech                             |
 |:-:|-----------------------------------|------------------------------------------------------------------------------------|--------------------------------------|
 | 1 | **Cursor Extension Core**         | IPC server, exposes `Oppie:executePlan`, renders Webview timeline                  | VS Code Extension API                |
-| 2 | **Plug-in Mesh & ToolBroker**     | Dynamically loads `*.plugin.js`, routes *plan / act / verify* calls               | TypeScript `import()`                |
-| 3 | **PocketFlow Mini-Orchestrator**  | Executes `plan → act → verify` loop, swaps reasoning adapters (ToT, Reflexion)    | PocketFlow (lightweight)             |
+| 2 | **OpenHands ACI Stack**          | Agent planning, runtime execution, trajectory recording, function calling          | OpenHands CodeActAgent              |
+| 3 | **OpenHands Adapter**            | 将Template A与OpenHands事件流互相转换，提供兼容层                                       | TypeScript/Python适配器              |
 | 4 | **Sidecar Daemon**                | Bridges Cloud Relay & IPC; provides keystroke fallback when Extension fails       | `websockets`, `pyautogui`            |
-| 5 | **Dev-Loop Watcher**              | Monitors Cursor Executor logs, fires recovery prompt via Agent S                  | Python 3.12                          |
-| 6 | **Agent S**                       | Reliable GUI automation (focus, type, Enter)                                       | Native Accessibility bindings        |
-| 7 | **Vector Store**                  | Stores embeddings, plans, execution logs                                           | rqlite (embedded Raft)               |
+| 5 | **Dev-Loop Watcher**              | Monitors Cursor Executor logs, fires recovery prompt when needed                  | Python 3.12                          |
+| 6 | **Trajectory Visualizer**        | 实时可视化执行轨迹、事件流和文件变更                                                      | React + TailwindCSS                 |
 
 ---
 
 ## 5 Core Data & Control Flows
 
-1. **Trigger** PWA sends `runPlan` over WSS to the Sidecar.
-2. **Plan** Extension calls *PocketFlow* → multiple reasoning adapters produce a JSON Plan.
-3. **Execute** ToolBroker invokes Git, Terminal, Editor or Chat plugins; each step streamed to the PWA.
-4. **Recovery** If Executor logs `Exceeded 25 native tool calls` **or** bubble lacks *Template A*, Watcher→Agent S types the fixed recovery prompt and presses Enter (< 250 ms).
-5. **Verify** PocketFlow checks exit statuses; failures are embedded into Vector Store and may trigger another plan iteration (Reflexion).
+1. **Trigger** PWA sends `runPlan` over WSS to the Sidecar.
+2. **Plan** Extension calls OpenHands ACI → CodeActAgent produces a structured plan.
+3. **Execute** OpenHands Runtime执行计划，每个步骤产生事件流通过Extension传输到PWA。
+4. **Recovery** 如果Executor logs中发现`Exceeded 25 native tool calls` **or** bubble缺失*Template A*，Watcher输入恢复指令；OpenHands的BudgetManager自动处理工具调用限制。
+5. **Verify** OpenHands Reflection机制检查执行状态并学习失败模式。
 
 ---
 
@@ -85,9 +81,9 @@ digraph G
 | Layer             | Choice                    | Justification                                               |
 |-------------------|---------------------------|-------------------------------------------------------------|
 | Language (Host)   | Python 3.12, TypeScript   | Rich stdlib + VS Code APIs                                  |
-| GUI Automation    | Agent S (pref) / pyautogui | Higher reliability, signed binaries, privacy-friendly       |
-| Embeddings        | `openai/ada-002` (M1)     | 2 k tokens context, cheap, already approved                 |
-| Storage           | rqlite (HTTP + Raft)      | No single point of failure, easy local install              |
+| Agent Framework   | OpenHands ACI             | 成熟的代理系统，内置事件流、运行时和向量存储                        |
+| GUI Automation    | OpenHands Runtime / pyautogui | 主要通过OpenHands Runtime，保留pyautogui作为fallback           |
+| Embeddings        | OpenHands VectorAdapter   | 支持多种后端（FAISS、Milvus等），统一API                          |
 | Packaging         | `pnpm build` (extension), `pyinstaller` (watcher) | Single-file distribution                         |
 
 ---
@@ -99,26 +95,26 @@ digraph G
 └─ "Start Oppie Dev-Loop"  →  ./scripts/start_devloop.sh
 ```
 
-`start_devloop.sh` launches **Codex Planner** in a new terminal tab and the **Dev-Loop Watcher** in the current one.  The task is configured with `"runOn": "folderOpen"` so that simply opening the repo boots the entire loop.
+`start_devloop.sh` 启动 **Codex Planner** 和 **OpenHands Server**，并启动 **Dev-Loop Watcher**。可使用 `OPENHANDS_ENABLED=true` 控制是否启用OpenHands。任务配置了 `"runOn": "folderOpen"` 以便打开项目时自动启动整个循环。
 
 ---
 
 ## 8 Alignment with .cursorrules & codex.md
 
-The design above preserves the recursive *Template A* driven **Planner ⇄ Executor** loop required by `.cursorrules` and `codex.md` while expanding its surface:
+重构后的设计仍保持了递归的 *Template A* 驱动的 **Planner ⇄ Executor** 循环，同时通过OpenHands扩展了其能力：
 
-* **Watcher & Agent S** still enforce the presence of *Template A* and recover after 25 tool calls (Rule `FINAL DOs AND DON'Ts`).
-* The **PocketFlow Mini-Orchestrator** runs *within* the Executor's control, so its steps are expressed as native tool calls, staying inside Cursor's governance (Rule `cursor_native_tooling`).
-* All components run locally, honouring the **no cloud agent orchestration** constraint.
-* Mobile & cloud layers are stateless relays; they do **not** violate rule limits nor require Executor tool calls.
+* **Watcher** 仍然负责强制执行 *Template A* 的存在，并在 25 工具调用后恢复（规则 `FINAL DOs AND DON'Ts`）。
+* **OpenHands ACI** 运行在 Executor 的控制下，因此其步骤通过原生工具调用表达，保持在 Cursor 治理内（规则 `cursor_native_tooling`）。
+* 所有组件仍在本地运行，遵守 **no cloud agent orchestration** 约束。
+* 移动和云层仍是无状态中继；它们不违反规则限制，也不需要 Executor 工具调用。
 
 ---
 
 ## 9 Future Evolution (post-M1)
 
-1. **Headless Cursor RPC** Replace Agent S keystrokes once official RPC is exposed.
-2. **Reasoning SFS Adapter** Introduce Scattered Forest Search to push pass-rate > 45 %.
-3. **Fine-grained Usage Metering** JWT claims mapped to Cursor usage events for team billing.
+1. **OpenHands Function Library** 扩展OpenHands的function calling能力，支持更多Cursor特定操作。
+2. **Reasoning Adapters** 利用OpenHands的插件机制添加推理增强（如ToT、Reflexion）。
+3. **Fine-grained Usage Metering** JWT claims映射到Cursor使用事件，用于团队计费。
 
 ---
 

@@ -16,5 +16,12 @@ Executor, 1) use sequential-thinking on problem/questions. And our InterviewArch
 Make sure your create the plan request md file with presented template in @drop-in_template_A.mdc . And make sure you do run @send_codex_plan_request.sh 
 
 
+# Executor addresses plan:
+1. Executor, execute the plan @xxx_planner_response.md  and strictly follow @.cursorrules , @scratchpad.md , @drop-in_template_A.mdc , and keep our ultimate @news_letter.md in mind. ANd make sure you do run @send_codex_plan_request.sh in case of you need help or need to do complex task planning. AND DONT YOU EVER TAKE OVER PLANNER'S JOB.
+
+
+
 # Executor Resume:
-1. Executor, resume where you left and strictly follow @.cursorrules , @scratchpad.md , and keep our ultimate @news_letter.md in mind. ANd make sure you do run @send_codex_plan_request.sh 
+ 1. Executor, resume where you left and strictly follow @.cursorrules , @scratchpad.md , @drop-in_template_A.mdc , and keep our ultimate @news_letter.md in mind. ANd make sure you do run @send_codex_plan_request.sh in case of you need help or need to do complex task planning. AND DONT YOU EVER TAKE OVER PLANNER'S JOB.
+
+2. Executor, recall  the presented chat history of `.specstory/history/2025-05-04_06-50-project-execution-and-compliance-guidelines.md`, and strictly follow @.cursorrules , @scratchpad.md , @drop-in_template_A.mdc  ,and keep our ultimate @news_letter.md in mind. ANd make sure you do run @send_codex_plan_request.sh 

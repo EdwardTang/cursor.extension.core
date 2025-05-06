@@ -1,0 +1,64 @@
+name: Extension CI
+
+on:
+  push:
+    branches:
+      - main # Or your primary branch
+    paths:
+      - 'vscode-extension/oppie-xyz/**'
+  pull_request:
+    branches:
+      - main # Or your primary branch
+    paths:
+      - 'vscode-extension/oppie-xyz/**'
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Use Node.js 20.x as specified in package.json
+
+      - name: Install VS Code Extension dependencies
+        run: cd vscode-extension/oppie-xyz && npm ci
+
+      - name: Compile Extension
+        run: cd vscode-extension/oppie-xyz && npm run compile
+
+      - name: Run Extension Tests
+        run: cd vscode-extension/oppie-xyz && npm run test
+        env:
+          VSCODE_VERSION: 'stable' # Use stable VS Code version for tests
+
+      - name: Package Extension
+        run: |
+          cd vscode-extension/oppie-xyz
+          npm install -g @vscode/vsce
+          vsce package --yarn
+
+      - name: Upload VSIX Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oppie-xyz-extension
+          path: vscode-extension/oppie-xyz/*.vsix
+
+      # Placeholder for ADR check
+      # - name: Check for ADR link (Placeholder)
+      #   run: |
+      #     echo "Checking for ADR link on critical path changes..."
+      #     # Implement logic here to check commits in the PR/push
+      #     # If changes touch critical areas (e.g., ./src/extension.ts, package.json)
+      #     # and no ADR link pattern is found in commit messages, exit 1.
+      #     # Example check (very basic):
+      #     # git log --pretty=format:%s origin/main..HEAD | grep -iE 'ADR[: ]*\.\/\.cursor\/adr\/'
+      #     # if [[ $? -ne 0 && $(git diff --name-only origin/main..HEAD | grep -E '(src/extension\.ts|package\.json)') ]]; then
+      #     #   echo "Error: Changes detected in critical files without a corresponding ADR link in commit messages."
+      #     #   exit 1
+      #     # fi
+      #     echo "ADR Check Placeholder: Pass" 

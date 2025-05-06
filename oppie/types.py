@@ -56,4 +56,43 @@ class TemplateMissingError(Exception):
     """模板缺失异常"""
     def __init__(self, message="Required Template A is missing from assistant response"):
         self.message = message
-        super().__init__(self.message) 
+        super().__init__(self.message)
+
+class ConfigUpdateMsg:
+    """配置更新消息"""
+    
+    def __init__(self, 
+                 section: str,
+                 parameter: str,
+                 value: Any,
+                 timestamp: float,
+                 node_id: str,
+                 priority: int = 0,
+                 version_vector: Optional[Dict[str, int]] = None):
+        """
+        初始化配置更新消息
+        
+        Args:
+            section: 配置部分，如"mesh", "auto_tuner"
+            parameter: 参数名称，如"batch_size_limit"
+            value: 新值
+            timestamp: 更新时间戳
+            node_id: 发起更新的节点ID
+            priority: 优先级（0-10，值越大优先级越高）
+            version_vector: 版本向量，用于冲突检测
+        """
+        self.section = section
+        self.parameter = parameter
+        self.value = value
+        self.timestamp = timestamp
+        self.node_id = node_id
+        self.priority = priority
+        self.version_vector = version_vector or {}
+    
+    def __str__(self) -> str:
+        """字符串表示"""
+        return f"ConfigUpdate({self.section}.{self.parameter}={self.value}, from={self.node_id})"
+    
+    def get_key(self) -> str:
+        """获取配置键"""
+        return f"{self.section}.{self.parameter}" 

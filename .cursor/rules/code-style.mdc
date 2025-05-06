@@ -1,0 +1,109 @@
+---
+description: Thought for 4 seconds   ### What kinds of work do the **Code-Style Rules** improve?  | Work Category                  | Typical Scenarios                                                          | Why the style guide matters                                                                                                         | | ------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | | **New feature implementation** | Writing fresh TypeScript modules, React components, Python micro-services  | Enforces consistent naming, strict typing, predictable import order—so Planner & Executor can reason about unfamiliar code quickly. | | **Bug-fix & refactor passes**  | Re-structuring functions, extracting helpers, removing tech-debt           | Formatters (Prettier, Black) and linters (ESLint, Ruff) catch hidden bugs while keeping the diff small and reviewable.              | | **API & schema design**        | Adding TypeScript type declarations, Python Pydantic models, OpenAPI specs | Strict compiler flags (`--strict`, `mypy --strict`) surface contract breaks early.                                                  | | **Test writing**               | Jest test suites, pytest cases                                             | Uniform file naming (`*.test.ts`, `test_*.py`) and import rules let CI auto-discover and run every test bundle.                     | | **Documentation & examples**   | Code blocks inside markdown, doc-string examples                           | Pre-commit hooks format embedded code so docs compile without errors and examples stay executable.                                  |  ---  ### When should an **Agent** trigger style-checking tasks?  | Development Moment                                 | Planner / Executor action                                                                                                  | Tool triggered      | | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------- | | **Immediately after generating or editing a file** | Executor runs local formatter (`prettier --write`, `black`) before adding to Git index.                                    | Prettier / Black    | | **Just before committing**                         | Pre-commit hook auto-launches linters. Executor must fix any errors; commit aborts if hooks fail.                          | ESLint, Ruff, isort | | **During each CI pipeline**                        | The test-matrix job re-runs formatters, linters and type-checkers to guard against “works-on-my-machine”.                  | ESLint + tsc + mypy | | **When Planner proposes a refactor**               | The first PLAN step should include: “Run full linter & type-check suite to verify no regressions.”                         | All style tools     | | **Before opening / updating a PR**                 | Executor ensures `npm test` & `pytest` are green and diffs show *only* purposeful code changes (formatters prevent noise). | Jest / pytest       | | **On merge to protected branches**                 | CI gate blocks merge if any style rules fail; Planner should never plan a merge step until the green check appears.        | GitHub Actions      |  **Rule of thumb:** *Every file save ➜ run the formatter. Every commit ➜ pass the linter. Every PR / merge ➜ all style, test and type gates must be green.*  By inserting those checkpoints into the Planner’s PLAN and the Executor’s routine, agents guarantee that all contributions conform to the shared code-style—keeping the repository clean, predictable, and easy for both humans and future agent cycles to extend.
+globs: 
+alwaysApply: false
+---
+**Summarizing code style**
+
+It seems that the code style guidelines I need to share are already in the "Git Best Practices Cursor" canvas, and they include rules for TypeScript/JS and Python. The user wanted a custom code style, and we've set one up in the canvas. Since the canvas tool is disabled, I can't make any more updates there, but I can definitely summarize the code style in a response and refer to the guidelines in the canvas.
+
+**Providing code style and task description**
+
+The user asked for a code style for the project using TypeScript, JavaScript, and Python. The style guidelines are already written, so I just need to confirm and present them. I’ll summarize the relevant points from the "Git Best Practices Cursor" doc, specifically the code style section.
+
+I’ll also respond to the earlier request about a task description: the rule set supports a multi-agent Plan-Execute workflow, helping agents handle tasks across multiple cycles, particularly with coordination, task execution, and design updates.
+
+
+Thought for 24 seconds
+
+
+### What these rules are for
+
+The rule-set you supplied ( `.cursorrules`  +  `@drop-in_template_A.mdc` ) defines a **Planner ⇄ Executor “plan-and-execute” loop** that keeps long-running coding sessions safe, reviewable and self-correcting.  Its job is to make sure that, every time the AI touches your code-base, it:
+
+1. **Plans before it edits** – the Planner role analyses the current project state and publishes a short, verifiable plan.
+2. **Executes in small, atomic cycles** – the Executor carries out that plan, updates docs/scratchpad, lists any blockers, and immediately produces the next *Prompt A* request.
+3. **Surfaces everything for review** – all plans, outcomes and design deltas are logged in `.scratchpad_logs/` and mirrored into the design docs so a human can step in at any point.
+4. **Recovers automatically** – external Watcher scripts detect template omissions, Cursor tool-call limits, or other failures and re-start the loop without human scrambling.
+
+#### When an agent should run these tasks
+
+| Moment in the development life-cycle                                    | What the agent should do                                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **New feature / bug request arrives**                                   | Create **`Prompt A₀`** with CYCLE 0; Planner proposes architecture or patch outline.       |
+| **Each coding micro-iteration**                                         | Executor runs the plan, commits minimal edits, refreshes docs, emits **`Prompt Aₙ₊₁`**.    |
+| **Design docs change** (`high_level_design.md` / `low_level_design.md`) | Executor must *immediately* reflect that delta in the next Prompt A and in the scratchpad. |
+| **Blocker encountered**                                                 | Fill in “CURRENT BLOCKERS” + “QUESTIONS / REQUESTS” before handing back to Planner.        |
+| **> 6 hours of pause**                                                  | Executor asks Watcher/MCP (“Pieces”) to remind where it left off, then resumes loop.       |
+| **Loop termination condition met**                                      | Planner states “Goal achieved”, Checklist says no further Prompts are required.            |
+
+By following the table above, every edit is preceded by an explicit plan, every plan is followed by auditable execution, and humans can step in, review or roll back at any stage.
+
+---
+
+## Project Code-Style Guide
+
+*(applies to TypeScript / JavaScript & Python source; enforced by Prettier, ESLint, Black & Ruff through pre-commit and CI)*
+
+### 1. Formatting & general rules (all languages)
+
+| Rule                | Setting                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Line length**     | ≤ 100 chars                                                                                             |
+| **Indentation**     | 2 spaces (tabs forbidden)                                                                               |
+| **Encoding / EOL**  | UTF-8, `LF`                                                                                             |
+| **Trailing commas** | *Always* where language permits                                                                         |
+| **Naming**          | `camelCase` for variables & functions; `PascalCase` for classes/types; `UPPER_SNAKE_CASE` for constants |
+| **Imports**         | Sorted (languages’ linter plugins), grouped std-lib → third-party → local                               |
+| **Comments**        | Keep code self-explanatory; add doc-strings / JSDoc only for non-obvious intent or public API surfaces  |
+
+### 2. TypeScript / JavaScript specifics
+
+| Tool / Flag       | Value                                                                           |
+| ----------------- | ------------------------------------------------------------------------------- |
+| **Formatter**     | Prettier (strict)                                                               |
+| **Linter**        | ESLint + `@typescript-eslint`, `eslint-config-prettier`, `eslint-plugin-import` |
+| **tsconfig**      | `"strict": true`, `"noImplicitAny": true`, `"exactOptionalPropertyTypes": true` |
+| **Promises**      | Never leave unmanaged; always `await` or `return`                               |
+| **Error classes** | Extend `Error`; never swallow bare `catch (e)`                                  |
+| **File names**    | `kebab-case.ts`, tests as `*.test.ts` (Jest)                                    |
+
+### 3. Python specifics
+
+| Tool / Flag           | Value                                                   |
+| --------------------- | ------------------------------------------------------- |
+| **Formatter**         | Black (line-length 100)                                 |
+| **Import order**      | isort (Black profile)                                   |
+| **Static typing**     | `mypy --strict` passes on CI                            |
+| **Linter**            | Ruff (replaces flake8 + isort)                          |
+| **Doc-strings**       | Google style for all public modules, classes, functions |
+| **Virtualenv & deps** | Poetry; `poetry.lock` committed                         |
+| **Tests**             | pytest; mirror package structure under `tests/`         |
+
+### 4. Tooling glue (pre-commit excerpt)
+
+```yaml
+repos:
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.2.5
+    hooks: [ { id: prettier } ]
+  - repo: https://github.com/psf/black
+    rev: 24.4.0
+    hooks: [ { id: black } ]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.2
+    hooks: [ { id: ruff } ]
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.57.0
+    hooks: [ { id: eslint } ]
+```
+
+### 5. CI gates
+
+* **test-matrix** – runs Jest + pytest + linters on every PR
+* **guard-agent-artifacts** – fails build if any `*_plan_request.md`, `*_plan_response.md` or `.scratchpad_logs/**` files leak into commits
+* **semantic-release** – tags `main` and `release/*` branches using commit history
+
+---
+
+These conventions keep the codebase machine-formatted, fully-typed and review-friendly, while letting the multi-agent loop operate safely without littering Git history with transient planning files.
