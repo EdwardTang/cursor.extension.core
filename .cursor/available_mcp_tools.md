@@ -100,23 +100,54 @@ node /Users/yongbingtang/Projects/git-mcp-server/dist/index.js
 
 ## MCP-DeepWiki
 
-MCP-DeepWiki服务器提供对GitHub主要项目代码库的知识库访问，基于npx运行`mcp-deepwiki@latest`。特别适合研究和探索技术解决方案。
+MCP-DeepWiki 服务器是一个为开发者和研究者设计的知识检索与文档分析平台，专注于 GitHub 主要项目的结构化知识获取与技术洞察。其底层实现基于 fastmcp 框架，支持通过 stdio 方式运行
 
-**核心功能**：
-* 获取GitHub项目的结构化知识
-* 搜索代码模式和最佳实践
-* 提取项目文档和设计决策
-* 分析技术栈和依赖关系
+MCP-DeepWiki服务器为开发者和研究者提供结构化的开源库检索与文档分析能力，特别适用于需要深入理解GitHub主流项目的技术细节和用法场景。其底层基于fastmcp框架，支持通过stdio方式运行，具备高效的库ID解析和文档获取工具。
 
-**主要工具**：
-* `search_knowledge`：在知识库中搜索特定概念或模式
-* `get_project_structure`：获取项目架构概览
-* `fetch_documentation`：检索项目文档
-* `tech_stack_analysis`：分析项目使用的技术栈
+**主要能力**：
+* 解析库名为唯一的library ID（如mongodb/docs、vercel/nextjs等）
+* 检索并获取指定开源库的最新文档、代码片段和技术说明
+* 支持基于查询的文档聚焦（如“如何使用hooks？”、“如何配置路由？”）
+* 结合GitHub指标（如star数、描述、语言）智能排序和推荐最相关的库
+* 支持token限制，便于LLM上下文管理
+
+**核心工具**：
+
+- `resolve-library-id`  
+  解析包名为唯一的library ID，并返回最相关的库列表。  
+  **用法示例**：  
+  ```
+  {
+    "tool": "resolve-library-id",
+    "args": {
+      "libraryName": "nextjs"
+    }
+  }
+  ```
+  返回内容包括最佳匹配的repo_name、描述、语言、star数等。必须先调用此工具获取library ID，再用于文档检索。
+
+- `get-library-docs`  
+  获取指定library ID的最新文档内容，可选支持查询聚焦和token长度限制。  
+  **用法示例**：  
+  ```
+  {
+    "tool": "get-library-docs",
+    "args": {
+      "libraryID": "vercel/nextjs",
+      "query": "how to use routing?",
+      "maxTokens": 2048
+    }
+  }
+  ```
+  返回内容为聚焦后的文档片段，便于LLM理解和回答技术问题。
+
+**典型工作流**：
+1. 先用`resolve-library-id`根据库名获取最优的library ID
+2. 再用`get-library-docs`结合ID和具体查询获取高相关性的文档内容
 
 **启动方式**：
 ```bash
-npx -y mcp-deepwiki@latest
+node /path/to/mcp-deepwiki/dist/index.js
 ```
 
 ## Context7-MCP
@@ -220,3 +251,69 @@ uvx --from mcp-alchemy==2025.04.16.110003 --refresh-package mcp-alchemy mcp-alch
 
 **注意**：Pieces MCP运行不需要额外命令，但需要安装Pieces桌面应用作为后端服务。
 
+
+
+## UML-MCP: 图表生成服务器
+
+UML-MCP 是一个强大的图表生成服务器，它实现了模型上下文协议 (Model Context Protocol, MCP)，能够直接从 AI 助手和其他应用程序无缝创建图表。
+
+**核心功能**：
+*   **多种图表类型支持**：支持 UML 图（类图、序列图、活动图、用例图、状态图、组件图、部署图、对象图）、Mermaid、D2、Graphviz、ERD、BlockDiag、BPMN、C4 (使用 PlantUML) 等。
+*   **MCP 集成**：与支持 MCP 的大语言模型 (LLM) 助手无缝集成。
+*   **在线编辑器链接**：为每种图表类型提供直接链接到在线编辑器的功能。
+*   **多种输出格式**：支持 SVG、PNG、PDF 等多种输出格式。
+*   **灵活配置**：支持本地和远程图表渲染服务（如 Kroki, PlantUML）。
+*   **模块化架构**：包括 MCP 服务器核心、图表生成器、MCP 工具接口和资源模板。
+
+**核心工具 (Core Tools)**:
+服务器实现了多种图表生成工具：
+
+*   **通用UML生成器 (Universal UML Generator)**
+    *   `generate_uml`: 生成任何支持的UML图表。
+        *   参数: `diagram_type` (图表类型), `code` (图表定义代码), `output_dir` (可选, 输出目录)
+
+*   **特定UML图表工具 (Specific UML Diagram Tools)**
+    *   `generate_class_diagram`: 生成UML类图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_sequence_diagram`: 生成UML序列图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_activity_diagram`: 生成UML活动图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_usecase_diagram`: 生成UML用例图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_state_diagram`: 生成UML状态图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_component_diagram`: 生成UML组件图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_deployment_diagram`: 生成UML部署图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_object_diagram`: 生成UML对象图。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+
+*   **其他图表格式工具 (Other Diagram Formats)**
+    *   `generate_mermaid_diagram`: 使用Mermaid语法生成图表。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_d2_diagram`: 使用D2语法生成图表。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_graphviz_diagram`: 使用Graphviz DOT语法生成图表。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+    *   `generate_erd_diagram`: 生成实体关系图 (ERD)。
+        *   参数: `code` (图表定义代码), `output_dir` (可选, 输出目录)
+
+**可用资源 (MCP Resources)**:
+服务器通过 `uml://` URI 协议提供以下资源：
+*   `uml://types`: 可用的UML图表类型列表。
+*   `uml://templates`: 用于创建UML图表的模板。
+*   `uml://examples`: 用作参考的UML图表示例。
+*   `uml://formats`: 支持的图表输出格式。
+*   `uml://server-info`: 关于UML-MCP服务器的信息。
+
+**辅助提示 (Helper Prompts)**:
+服务器提供以下提示，以辅助创建常见的UML图表：
+*   `class_diagram`: 创建一个UML类图，展示类、属性、方法和它们之间的关系。
+*   `sequence_diagram`: 创建一个UML序列图，展示对象之间随时间变化的交互过程。
+*   `activity_diagram`: 创建一个UML活动图，展示工作流程或业务流程的步骤。
+
+**启动方式**：
+
+通过 `smithery` CLI (推荐):

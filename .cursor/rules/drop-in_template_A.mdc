@@ -1,7 +1,7 @@
 ---
-description: 
+description: Planner and Executor work together in the Plan-Execute loop which is executed for each `Agentic Coding Steps`, driven by this template.
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 # Recursive template:
 Below is a **drop -in "Template A"** that accomplishes three things at once:
@@ -51,10 +51,10 @@ Use this section to poke the Planner if you need *more*—clarifications, extra 
 #### 📝 PLANNER RESPONSE FOR CYCLE {n} (filled by Planner, shipped to Executor)
 
 1.  **ANALYSIS & JUSTIFICATION:** ⟦ Planner's razor-sharp analysis and rationale based on CONTEXT ⟧
-2.  **PLAN (STRICTLY ≤ 8 ATOMIC ACTIONS; ACTION 1 MUST BE `Review scratchpad.md`):** ⟦ concise steps the Executor must perform, beginning with a scratchpad review ⟧
+2.  **PLAN (STRICTLY ≤ 10 ATOMIC ACTIONS):** ⟦ concise steps the Executor must perform: ACTION 1 and 2 MUST BE `Review scratchpad.md with ultrathink` and `Use exa mcp server's "web_search" and "research_paper_search" and deepwiki mcp server's "search_knowledge" to ultrathink if  Planner's design and instructions are factual and relevant. If no, ask clarifying quesiton to planner by following [agentic-coding-steps.mdc](mdc:.cursor/rules/agentic-coding-steps.mdc) and [drop-in_template_A.mdc](mdc:.cursor/rules/drop-in_template_A.mdc).` respectively; Last ACTION MUST BE `If there are any code changes, Uphold 95% of test coverage of critical code paths, and all tests should be passed. Remember that you are developing services serving millions of users. You are not working on a toy project!` ⟧
 3.  **BLOCKER SOLUTIONS:** ⟦ creative proposals to bust through CURRENT BLOCKERS ⟧
 4.  **BEST PRACTICES / MENTAL MODELS:** ⟦ relevant engineering best practices or mental models (cue the brain hacks) ⟧
-5.  **RECOMMENDED MCP TOOL CALLS (via pluggedin_proxy):** ⟦  recommend specific tools listed in `.cursor/available_mcp_tools.md` that would help execute the PLAN, such as `web_search` from exa-mcp-server or `fetch_documentation` from mcp-deepwiki. Each recommendation should include the tool name, purpose, and how it specifically helps with the current cycle's goals. ⟧
+5.  **RECOMMENDED MCP TOOL CALLS :** ⟦ always recommend pushover mcp to send notification to user's iPhone when executor are done for current cycle. And recommend specific tools listed in `.cursor/available_mcp_tools.md` that would help execute the PLAN, such as `web_search` from exa-mcp-server or `search_knowledge` from mcp-deepwiki. Each recommendation should include the tool name, purpose, and how it specifically helps with the current cycle's goals. ⟧
 6.  **EXECUTOR FOLLOW-UP CHECKLIST (to be executed at Cycle {n} conclusion):**
     
 ```text
@@ -65,7 +65,9 @@ Use this section to poke the Planner if you need *more*—clarifications, extra 
     e. Update `scratchpad.md` with key challenges, lessons learned, success criteria, progress, and delta notes.
     f. Verify `scratchpad.md` accurately reflects the latest state and commit changes if necessary.
     g. If cycle involved architecture decisions, consider creating an ADR using `tools/adr_init.sh "决策标题"`.
-    h. Blast Prompt A{n+1} out as the final message of your response.
+    h. Send a message via pushover-mcp with content stating these metadata: [📂 PROJECT], [🗺️ PREVIOUS GOAL (Cycle {n})] and [✅ PREVIOUS OUTCOME (Cycle {n})] of Prompt {n+1}, and the message title follows template {Project Name + Cycle {n}}. 
+    i. Blast Prompt A{n+1} out as the final message of your response.
+    j. Create the Prompt A{n+1} file, ensuring it is saved with a filename reflecting the current timestamp, for example: `.scratchpad_logs/YYYY-MM-DDTHH_MM_SS_plan_request.md`.
 ```
 ---
 

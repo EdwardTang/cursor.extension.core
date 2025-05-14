@@ -1,0 +1,67 @@
+---
+description: 
+globs: *.ts,*.md,*mdc,*.py,*.json,*.js
+alwaysApply: false
+---
+## Project Code-Style Guide
+
+*(applies to TypeScript / JavaScript & Python source; enforced by Prettier, ESLint, Black & Ruff through pre-commit and CI)*
+
+### 1. Formatting & general rules (all languages)
+
+| Rule                | Setting                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Line length**     | ≤ 100 chars                                                                                             |
+| **Indentation**     | 2 spaces (tabs forbidden)                                                                               |
+| **Encoding / EOL**  | UTF-8, `LF`                                                                                             |
+| **Trailing commas** | *Always* where language permits                                                                         |
+| **Naming**          | `camelCase` for variables & functions; `PascalCase` for classes/types; `UPPER_SNAKE_CASE` for constants |
+| **Imports**         | Sorted (languages’ linter plugins), grouped std-lib → third-party → local                               |
+| **Comments**        | Keep code self-explanatory; add doc-strings / JSDoc only for non-obvious intent or public API surfaces  |
+
+### 2. TypeScript / JavaScript specifics
+
+| Tool / Flag       | Value                                                                           |
+| ----------------- | ------------------------------------------------------------------------------- |
+| **Formatter**     | Prettier (strict)                                                               |
+| **Linter**        | ESLint + `@typescript-eslint`, `eslint-config-prettier`, `eslint-plugin-import` |
+| **tsconfig**      | `"strict": true`, `"noImplicitAny": true`, `"exactOptionalPropertyTypes": true` |
+| **Promises**      | Never leave unmanaged; always `await` or `return`                               |
+| **Error classes** | Extend `Error`; never swallow bare `catch (e)`                                  |
+| **File names**    | `kebab-case.ts`, tests as `*.test.ts` (Jest)                                    |
+
+### 3. Python specifics
+
+| Tool / Flag           | Value                                                   |
+| --------------------- | ------------------------------------------------------- |
+| **Formatter**         | Black (line-length 100)                                 |
+| **Import order**      | isort (Black profile)                                   |
+| **Static typing**     | `mypy --strict` passes on CI                            |
+| **Linter**            | Ruff (replaces flake8 + isort)                          |
+| **Doc-strings**       | Google style for all public modules, classes, functions |
+| **Virtualenv & deps** | Poetry; `poetry.lock` committed                         |
+| **Tests**             | pytest; mirror package structure under `tests/`         |
+
+### 4. Tooling glue (pre-commit excerpt)
+
+```yaml
+repos:
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.2.5
+    hooks: [ { id: prettier } ]
+  - repo: https://github.com/psf/black
+    rev: 24.4.0
+    hooks: [ { id: black } ]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.2
+    hooks: [ { id: ruff } ]
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.57.0
+    hooks: [ { id: eslint } ]
+```
+
+### 5. CI gates
+
+* **test-matrix** – runs Jest + pytest + linters on every PR
+* **guard-agent-artifacts** – fails build if any `*_plan_request.md`, `*_plan_response.md` or `.scratchpad_logs/**` files leak into commits
+* **semantic-release** – tags `main` and `release/*` branches using commit history

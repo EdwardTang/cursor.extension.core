@@ -180,7 +180,6 @@ cython_debug/
 .specstory/**/*
 .backup/*
 .scratchpad_logs/*
-.env.example
 .backups/
 .backups/.cursorrules.cloudkitchen
 # SpecStory explanation file

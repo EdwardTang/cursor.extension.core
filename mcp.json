@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "mcp-deepwiki": {
-      "description": "",
+      "description": "Fetch a deepwiki repo",
       "type": "stdio",
       "command": "npx",
       "args": [

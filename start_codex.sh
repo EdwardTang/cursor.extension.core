@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# start_codex.sh — Convenience launcher for Codex Planner (o3 model)
+# start_codex.sh — Convenience launcher for Codex Planner )
 # -----------------------------------------------------------------------------
 # This script opens a new zsh session and executes the Codex command recommended
 # by the tech-stack documentation:
-#     codex -m o3 -a full-auto --notify --debug
+#     codex --notify --debug
 #
 # Usage:
 #   ./start_codex.sh [extra_codex_args]
@@ -19,7 +19,7 @@
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
-DEFAULT_CMD=(codex -m o3 -a full-auto --notify --debug --project-doc scratchpad.md)
+DEFAULT_CMD=(codex --notify --debug --project-doc scratchpad.md)
 CMD=("${DEFAULT_CMD[@]}" "$@")
 
 launch_in_macos_terminal() {

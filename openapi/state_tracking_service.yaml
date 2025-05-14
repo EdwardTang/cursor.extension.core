@@ -1,0 +1,192 @@
+openapi: 3.0.0
+info:
+  title: State Tracking Service API
+  description: API for tracking and managing execution state in Oppie.xyz system
+  version: 1.0.0
+  contact:
+    name: Oppie.xyz Team
+
+paths:
+  /api/v1/states:
+    get:
+      summary: Get all states
+      description: Retrieve all execution states in the system
+      operationId: getAllStates
+      tags:
+        - States
+      parameters:
+        - name: status
+          in: query
+          description: Filter states by status
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, PAUSED, COMPLETED, FAILED]
+        - name: limit
+          in: query
+          description: Maximum number of states to return
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of execution states
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/State'
+        '500':
+          description: Internal server error
+
+  /api/v1/states/{stateId}:
+    get:
+      summary: Get state by ID
+      description: Retrieve a specific execution state by its ID
+      operationId: getStateById
+      tags:
+        - States
+      parameters:
+        - name: stateId
+          in: path
+          description: ID of the state to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Execution state found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/State'
+        '404':
+          description: State not found
+        '500':
+          description: Internal server error
+          
+    post:
+      summary: Create or update state
+      description: Create a new execution state or update an existing one
+      operationId: createOrUpdateState
+      tags:
+        - States
+      parameters:
+        - name: stateId
+          in: path
+          description: ID of the state to create or update
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: State data to create or update
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StateInput'
+      responses:
+        '201':
+          description: State created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/State'
+        '200':
+          description: State updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/State'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    State:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the state
+        executionId:
+          type: string
+          description: ID of the execution this state belongs to
+        planId:
+          type: string
+          description: ID of the plan being executed
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, COMPLETED, FAILED]
+          description: Current status of the execution
+        checkpoints:
+          type: array
+          description: List of checkpoint timestamps
+          items:
+            type: string
+            format: date-time
+        currentStep:
+          type: integer
+          description: Current step in the execution
+        totalSteps:
+          type: integer
+          description: Total number of steps in the execution
+        metadata:
+          type: object
+          description: Additional metadata for the execution
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - executionId
+        - status
+        - currentStep
+        - totalSteps
+        - createdAt
+        - updatedAt
+          
+    StateInput:
+      type: object
+      properties:
+        executionId:
+          type: string
+          description: ID of the execution this state belongs to
+        planId:
+          type: string
+          description: ID of the plan being executed
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, COMPLETED, FAILED]
+          description: Current status of the execution
+        checkpoints:
+          type: array
+          description: List of checkpoint timestamps
+          items:
+            type: string
+            format: date-time
+        currentStep:
+          type: integer
+          description: Current step in the execution
+        totalSteps:
+          type: integer
+          description: Total number of steps in the execution
+        metadata:
+          type: object
+          description: Additional metadata for the execution
+          additionalProperties: true
+      required:
+        - executionId
+        - status
+        - currentStep
+        - totalSteps 
