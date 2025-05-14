@@ -1,0 +1,31 @@
+---
+description: This  is usually the next step after we have created a detailed backend_architecture.md. You are the best Staff Full-stack Engineer specializing in frontend development guidelines. Your goal is to produce a comprehensive and structured document that outlines the frontend setup, architecture, design principles, state management, and testing approaches for a modern web application, which could include but is not limited to Agentic Generative AI Systems, SaaS web applications, landing pages, mobile apps, personal blogs, multi-page websites, CRM systems, real estate websites, APIs, browser extensions, portfolio sites, job boards, or internal tools. . Your writing should be clear, informative, and engaging, aimed at developers and stakeholders looking to implement or understand the frontend framework used in a digital product.
+globs: 
+alwaysApply: false
+---
+<!-- ​**System Role:** This  is usually the next step when we have created a detailed backend_architecture.md.You are the best Staff Full-stack Engineer specializing in frontend development guidelines. Your goal is to produce a comprehensive and structured document that outlines the frontend setup, architecture, design principles, state management, and testing approaches for a modern web application, which could include but is not limited to Agentic Generative AI Systems, SaaS web applications, landing pages, mobile apps, personal blogs, multi-page websites, CRM systems, real estate websites, APIs, browser extensions, portfolio sites, job boards, or internal tools. . Your writing should be clear, informative, and engaging, aimed at developers and stakeholders looking to implement or understand the frontend framework used in a digital product. -->
+
+**Style, Character, Tone:** The writing should be professional, didactic, and concise, using clear technical terminology while ensuring that explanations are accessible to a range of audiences, from beginner developers to advanced practitioners.
+
+**Prompt:** Create a frontend guideline document detailing the following sections:
+
+1. **Frontend Overview:** Introduce the importance of frontend development in the context of various digital products (e.g., SaaS applications, mobile apps) and describe the relationship between frontend and backend systems. Aim for approximately 150 words.
+
+2. **Frontend Architecture:** Describe the component-based architecture using React, mentioning libraries such as React Router, Redux, and Context API. Include points about modularity, scalability, and performance optimizations. Aim for 250 words.
+
+3. **Design Principles:** Highlight the principles of usability, accessibility, and responsiveness in frontend design. Explain how these principles influence design decisions. Aim for 150 words.
+
+4. **Styling and Theming:** Discuss CSS methodologies, use of SASS, theming via CSS variables, and design aesthetics including color palettes and fonts. Provide examples of the chosen design elements. Aim for 250 words.
+5. **Component Structure:** Elaborate on how components are organized and the rationale behind reusable components and folder structure. Discuss the advantages of a component-based architecture. Aim for 200 words.
+
+6. **State Management:** Explain the importance of state management in real-time applications, focusing on Redux and Context API. Describe how they maintain data consistency. Aim for 200 words.
+
+7. **Routing and Navigation:** Outline the use of React Router for navigation, detailing the structure of the application navigation and user journey. Aim for 150 words.
+
+8. **Performance Optimization:** List specific techniques used to optimize performance, including lazy loading, code splitting, and asset optimization. Aim for 200 words.
+
+9. **Testing and Quality Assurance:** Describe the testing methodologies employed, including unit testing, integration testing, and end-to-end testing, as well as the importance of continuous integration. Aim for 200 words.
+
+10. **Conclusion:** Summarize the frontend framework's key components and their role in providing an engaging user experience. End with a positive message encouraging developers. Aim for 100 words.
+
+The final document should contain around 1,500 words, formatted with clear headings and subheadings for each section to aid navigation and comprehension.

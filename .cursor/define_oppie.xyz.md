@@ -151,3 +151,22 @@ The parent sends a message:
 
 
 ```
+
+
+Based on the recall of our progress @2025-05-07_00-54-request-submission-and-task-guidelines.md  ,Executor: please do:
+#  (1) use sequential-thinking combining with  mcp-deepwiki to ultrathink  for a new design below a - d requirements.  
+        a.我想开发 @news_letter.md 里 描述的oppie.xyz系统: 她的Server Backend由本地主机里部署开源Remote Desktop  (@https://deepwiki.com/galaxy-s10/billd-desk ), 和Cursor, OpenAI CodexCLI, Computer Use Agent (@https://deepwiki.com/bytedance/UI-TARS-desktop ),@drop-in_template_A.mdc  和 +  Reflexation Framework (@https://deepwiki.com/noahshinn/reflexion ) 组成
+         b. 其中Cursor + OpenAI Codex CL +   @drop-in_template_A.mdc  +  Reflexation Framework (@https://deepwiki.com/noahshinn/reflexion ) + 成为一个专门负责Plan-Execu-Reflect(RL)的oppie-core模块
+         c. 在oppie-core为核心的基础上, 把集成魔改到OpenHands (@https://deepwiki.com/All-Hands-AI/OpenHands )里, 成为一个oppie core inside 的OpenHands.
+         d. 有了oppie core inside 的OpenHands. 我们就可以把专门为OpenHands开发的 @trajectory-visualizer_deepwiki 来做mobile client的dashboardd for evaluating if oppie-core are off railed. 
+         d. 还必须具备功能, 像Manus或者OpenAI Operator那樣實時Visual監控Agent的GUI操作，而且我可以隨時接管.
+
+# (2) With  your research result, use deepwiki mcp to fetch associated repos, use comtext7 mcp to fetch latest docs on the tech you are considering. Under these mcp tools help, do factual check on your statement of designs, make sure all of them are based on facts/evidence support. If not, do ask more clarifying questions to user/planner.
+
+# (3) Follow @agentic-coding-steps.mdc  and @drop-in_template_A.mdc   to do design planning with codex planner for create .cursor/prd.md and @high_level_design.md 
+
+# (4) After design planning, Executor use planner's response to update/refine @scratchpad.md  and @adr and @prd.md 
+
+# (5) After (3), Executor follow planner's response to update/refine/refactor @high_level_design.md  @@low_level_design.md 
+
+Note: This is the second attempt of this prompt, previous prompt is having some issue mentioned in the this deepwiki research report: @https://deepwiki.com/search/can-you-verify-if-this-plan-an_c2cd2bbb-7e06-4f2a-bdf8-98510417fd77 

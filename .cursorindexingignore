@@ -1,3 +1,11 @@
 
 # Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
+# Ignore SpecStory derived-cursor-rules.mdc backup files
+.specstory/cursor_rules_backups/*
+# Ignore SpecStory derived-cursor-rules.mdc backup files
+.specstory/rules_backups/*
+.backup/*
+# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ refe
+# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
+# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
 .specstory/**
